@@ -26,14 +26,14 @@ jobs:
 
       - name: Preparar chave de assinatura
         env:
-          KS: ${{ secrets.KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
         run: |
-          if [ -z "$KS" ]; then
-            echo "::error::Falta o segredo KEYSTORE_BASE64. Veja o LEIA-ME.md, passo 3."
+          # A chave fica no repositório protegida pela senha (segredo KEYSTORE_PASSWORD)
+          if [ -z "$KEYSTORE_PASSWORD" ]; then
+            echo "::error::Falta o segredo KEYSTORE_PASSWORD. Veja o LEIA-ME.md, passo 3."
             exit 1
           fi
-          printf "%s" "$KS" | tr -d " \r\n\t" | base64 -d > "$RUNNER_TEMP/gs.jks" || { echo "::error::O segredo KEYSTORE_BASE64 foi colado incompleto. Cole de novo o texto inteiro."; exit 1; }
-          echo "KEYSTORE_FILE=$RUNNER_TEMP/gs.jks" >> "$GITHUB_ENV"
+          echo "KEYSTORE_FILE=$GITHUB_WORKSPACE/android/keystore/gs.jks" >> "$GITHUB_ENV"
 
       - name: Compilar APK
         env:

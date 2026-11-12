@@ -34,12 +34,11 @@ Envie todo o conteúdo desta pasta para o repositório: as pastas `android`, `.g
 Pelo computador, use **Add file → Upload files** e arraste as pastas.
 
 ### 3. Cadastre a chave de assinatura
-A chave garante que cada versão nova instale por cima da anterior.
-No repositório, vá em **Settings → Secrets and variables → Actions → New repository secret** e crie dois segredos:
+A chave (`android/keystore/gs.jks`) já está no projeto, protegida por senha. Ela garante que cada versão nova instale por cima da anterior.
+No repositório, vá em **Settings → Secrets and variables → Actions → New repository secret** e crie um segredo:
 
 | Nome | Valor |
 |---|---|
-| `KEYSTORE_BASE64` | todo o texto do arquivo `KEYSTORE_BASE64.txt` |
 | `KEYSTORE_PASSWORD` | o texto do arquivo `KEYSTORE_PASSWORD.txt` |
 
 ⚠️ Guarde o arquivo da chave (`gs.jks`) e a senha em um lugar seguro. Se perder a chave, as próximas versões não vão instalar por cima da atual.
