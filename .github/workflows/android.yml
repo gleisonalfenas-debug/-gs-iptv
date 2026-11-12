@@ -32,7 +32,7 @@ jobs:
             echo "::error::Falta o segredo KEYSTORE_BASE64. Veja o LEIA-ME.md, passo 3."
             exit 1
           fi
-          echo "$KS" | base64 -d > "$RUNNER_TEMP/gs.jks"
+          printf "%s" "$KS" | tr -d " \r\n\t" | base64 -d > "$RUNNER_TEMP/gs.jks" || { echo "::error::O segredo KEYSTORE_BASE64 foi colado incompleto. Cole de novo o texto inteiro."; exit 1; }
           echo "KEYSTORE_FILE=$RUNNER_TEMP/gs.jks" >> "$GITHUB_ENV"
 
       - name: Compilar APK
