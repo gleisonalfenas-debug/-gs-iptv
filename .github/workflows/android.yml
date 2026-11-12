@@ -24,20 +24,10 @@ jobs:
         with:
           gradle-version: '8.9'
 
-      - name: Preparar chave de assinatura
-        env:
-          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
-        run: |
-          # A chave fica no repositório protegida pela senha (segredo KEYSTORE_PASSWORD)
-          if [ -z "$KEYSTORE_PASSWORD" ]; then
-            echo "::error::Falta o segredo KEYSTORE_PASSWORD. Veja o LEIA-ME.md, passo 3."
-            exit 1
-          fi
-          echo "KEYSTORE_FILE=$GITHUB_WORKSPACE/android/keystore/gs.jks" >> "$GITHUB_ENV"
-
       - name: Compilar APK
         env:
-          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEYSTORE_FILE: ${{ github.workspace }}/android/keystore/gs.jks
+          KEYSTORE_PASSWORD: JSGXNWAMm04uqKnImBDq
         run: gradle -p android assembleRelease --no-daemon
 
       - name: Preparar arquivos da versão
