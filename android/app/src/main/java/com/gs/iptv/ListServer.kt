@@ -74,9 +74,17 @@ object ListServer {
                         read += n
                     }
                     val form = parseForm(String(body, 0, read, Charsets.UTF_8))
-                    val ok = Store.saveFromForm(app, form)
+                    val loginError = if (Store.hasFixedServer || form["type"] == "xtream") {
+                        val user = form["user"].orEmpty().trim()
+                        val pass = form["pass"].orEmpty().trim()
+                        val server = if (Store.hasFixedServer) Store.fixedServer else form["server"].orEmpty().trim()
+                        if (user.isEmpty() || pass.isEmpty()) "Digite o usuário e a senha."
+                        else Xtream.checkLogin(server, user, pass)
+                    } else null
+                    val ok = loginError == null && Store.saveFromForm(app, form)
+                    val msg = loginError ?: "Preencha o link da lista."
                     val json = if (ok) "{\"ok\":true}"
-                    else "{\"ok\":false,\"error\":\"Preencha o link da lista ou os dados do Xtream.\"}"
+                    else "{\"ok\":false,\"error\":\"" + msg.replace("\"", "'") + "\"}"
                     respond(out, 200, "application/json; charset=utf-8", json)
                     if (ok) main.post { listener?.invoke() }
                 } else if (path.startsWith("/favicon")) {
@@ -84,6 +92,7 @@ object ListServer {
                 } else {
                     val html = app.resources.openRawResource(R.raw.phone).bufferedReader().use { it.readText() }
                         .replace("{{LIST_NAME}}", Store.listName(app))
+                        .replace("{{FIXED}}", if (Store.hasFixedServer) "1" else "0")
                     respond(out, 200, "text/html; charset=utf-8", html)
                 }
             }

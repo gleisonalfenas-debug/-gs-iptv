@@ -7,6 +7,8 @@ plugins {
 val buildNumber = (System.getenv("GITHUB_RUN_NUMBER") ?: "1").toInt()
 val githubRepo = System.getenv("GITHUB_REPOSITORY") ?: ""
 val keystoreFile = System.getenv("KEYSTORE_FILE")
+// Servidor fixo (modelo revenda): escreva o endereço no arquivo android/servidor.txt
+val fixedServer = rootProject.file("servidor.txt").takeIf { it.exists() }?.readText()?.trim().orEmpty()
 val updateUrl = if (githubRepo.isNotEmpty())
     "https://github.com/$githubRepo/releases/latest/download/update.json" else ""
 
@@ -21,6 +23,7 @@ android {
         versionCode = buildNumber
         versionName = "1.0.$buildNumber"
         buildConfigField("String", "UPDATE_URL", "\"$updateUrl\"")
+        buildConfigField("String", "XTREAM_SERVER", "\"$fixedServer\"")
     }
 
     signingConfigs {

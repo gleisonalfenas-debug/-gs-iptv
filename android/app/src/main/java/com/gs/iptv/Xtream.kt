@@ -59,6 +59,24 @@ object Xtream {
         return out
     }
 
+    /** Confere usuário e senha no servidor. Retorna null se estiver tudo certo, ou a mensagem de erro. */
+    fun checkLogin(server: String, user: String, pass: String): String? {
+        val base = (if (server.startsWith("http")) server else "http://$server").trimEnd('/')
+        return try {
+            val j = JSONObject(Net.getText("$base/player_api.php?username=${enc(user)}&password=${enc(pass)}", 15_000))
+            val info = j.optJSONObject("user_info") ?: return "Usuário ou senha incorretos."
+            when {
+                info.optString("auth") != "1" && info.optInt("auth", 0) != 1 -> "Usuário ou senha incorretos."
+                info.optString("status").equals("Expired", true) -> "Seu plano venceu. Fale com seu revendedor."
+                info.optString("status").equals("Banned", true) || info.optString("status").equals("Disabled", true) ->
+                    "Este usuário está bloqueado. Fale com seu revendedor."
+                else -> null
+            }
+        } catch (e: Exception) {
+            "Não consegui falar com o servidor. Tente de novo em instantes."
+        }
+    }
+
     /** Episódios de uma série, já com o link para tocar. */
     fun episodes(ctx: Context, seriesUrl: String, seriesName: String, logo: String): List<Item> {
         val l = Store.xtreamLogin(ctx)

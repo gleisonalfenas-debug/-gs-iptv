@@ -28,23 +28,24 @@ input{width:100%;height:52px;border-radius:10px;border:0;padding:0 14px;font-siz
 <body>
 <form class="wrap" id="f">
   <div class="brand"><div class="logo">GS</div><div><b>GS IPTV</b><small>Conectado à TV</small></div></div>
-  <h1>Enviar lista para a TV</h1>
+  <h1 id="title">Enviar lista para a TV</h1>
+  <p id="sub" style="margin:-6px 0 0;color:#f3d6d8;font-size:16px;display:none">Digite o usuário e a senha que você recebeu.</p>
   <div class="tabs" role="tablist">
     <button type="button" class="on" id="tM" role="tab" aria-selected="true">Link M3U</button>
     <button type="button" id="tX" role="tab" aria-selected="false">Xtream Codes</button>
   </div>
   <input type="hidden" name="type" id="type" value="m3u">
-  <div><label for="name">Nome da lista</label><input id="name" name="name" value="{{LIST_NAME}}"></div>
+  <div id="nameBox"><label for="name">Nome da lista</label><input id="name" name="name" value="{{LIST_NAME}}"></div>
   <div id="m3u">
     <label for="url">Link da lista (M3U / M3U8)</label>
     <input id="url" name="url" type="url" inputmode="url" autocapitalize="off" autocorrect="off" placeholder="http://seu-provedor.com/lista.m3u">
   </div>
   <div id="xt" class="hide" style="display:none;flex-direction:column;gap:14px">
-    <div><label for="server">Servidor (URL)</label><input id="server" name="server" inputmode="url" autocapitalize="off" autocorrect="off" placeholder="http://servidor.com:8080"></div>
+    <div id="serverBox"><label for="server">Servidor (URL)</label><input id="server" name="server" inputmode="url" autocapitalize="off" autocorrect="off" placeholder="http://servidor.com:8080"></div>
     <div><label for="user">Usuário</label><input id="user" name="user" autocapitalize="off" autocorrect="off"></div>
     <div><label for="pass">Senha</label><input id="pass" name="pass" type="password"></div>
   </div>
-  <div><label for="epg">Link do guia EPG (opcional)</label><input id="epg" name="epg" type="url" inputmode="url" autocapitalize="off" placeholder="http://…/epg.xml"></div>
+  <div id="epgBox"><label for="epg">Link do guia EPG (opcional)</label><input id="epg" name="epg" type="url" inputmode="url" autocapitalize="off" placeholder="http://…/epg.xml"></div>
   <button class="send" id="go" type="submit">Enviar para a TV</button>
   <div class="msg" id="msg"><span class="dot"></span><span id="mt">A TV carrega os canais assim que a lista chegar.</span></div>
 </form>
@@ -55,14 +56,20 @@ function mode(x){type.value=x;tM.className=x==='m3u'?'on':'';tX.className=x==='x
  document.getElementById('m3u').style.display=x==='m3u'?'block':'none';
  document.getElementById('xt').style.display=x==='xtream'?'flex':'none';}
 tM.onclick=function(){mode('m3u')};tX.onclick=function(){mode('xtream')};
+if('{{FIXED}}'==='1'){mode('xtream');
+ ['nameBox','serverBox','epgBox'].forEach(function(id){document.getElementById(id).style.display='none'});
+ document.querySelector('.tabs').style.display='none';
+ document.getElementById('title').textContent='Entrar no GS IPTV';
+ document.getElementById('sub').style.display='block';
+ document.getElementById('go').textContent='Entrar';}
 document.getElementById('f').onsubmit=function(e){e.preventDefault();
  var go=document.getElementById('go'),msg=document.getElementById('msg'),mt=document.getElementById('mt');
- go.disabled=true;go.textContent='Enviando…';
+ var label=go.textContent;go.disabled=true;go.textContent='Conferindo…';
  fetch('/send',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams(new FormData(this)).toString()})
  .then(function(r){return r.json()}).then(function(j){
-   if(j.ok){msg.className='msg';mt.textContent='Pronto! Lista enviada. Olhe a TV.';go.textContent='Enviado ✓';}
-   else{msg.className='msg err';mt.textContent=j.error||'Erro ao enviar.';go.disabled=false;go.textContent='Enviar para a TV';}
- }).catch(function(){msg.className='msg err';mt.textContent='Não consegui falar com a TV. Celular e TV estão no mesmo Wi-Fi?';go.disabled=false;go.textContent='Enviar para a TV';});
+   if(j.ok){msg.className='msg';mt.textContent='Pronto! Olhe a TV, os canais estão carregando.';go.textContent='Conectado ✓';}
+   else{msg.className='msg err';mt.textContent=j.error||'Erro ao enviar.';go.disabled=false;go.textContent=label;}
+ }).catch(function(){msg.className='msg err';mt.textContent='Não consegui falar com a TV. Celular e TV estão no mesmo Wi-Fi?';go.disabled=false;go.textContent=label;});
 };
 </script>
 </body>

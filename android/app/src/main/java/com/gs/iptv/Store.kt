@@ -37,10 +37,14 @@ object Store {
 
     fun listName(ctx: Context): String = prefs(ctx).getString("name", null) ?: "Minha lista"
 
+    /** Servidor gravado no app (modelo revenda). Vazio = cliente informa a lista. */
+    val fixedServer: String get() = BuildConfig.XTREAM_SERVER.trim().trimEnd('/')
+    val hasFixedServer: Boolean get() = fixedServer.isNotEmpty()
+
     fun playlistUrl(ctx: Context): String? {
         val p = prefs(ctx)
-        return if (p.getString("type", "m3u") == "xtream") {
-            val server = p.getString("server", "")!!.trim().trimEnd('/')
+        return if (isXtream(ctx)) {
+            val server = if (hasFixedServer) fixedServer else p.getString("server", "")!!.trim().trimEnd('/')
             val user = p.getString("user", "")!!
             val pass = p.getString("pass", "")!!
             if (server.isEmpty() || user.isEmpty()) null
@@ -52,10 +56,10 @@ object Store {
 
     /** Salva o que veio do celular. Retorna false se faltou algum dado. */
     fun saveFromForm(ctx: Context, f: Map<String, String>): Boolean {
-        val type = f["type"] ?: "m3u"
+        val type = if (hasFixedServer) "xtream" else (f["type"] ?: "m3u")
         val e = prefs(ctx).edit()
         if (type == "xtream") {
-            val server = f["server"].orEmpty().trim()
+            val server = if (hasFixedServer) fixedServer else f["server"].orEmpty().trim()
             val user = f["user"].orEmpty().trim()
             if (server.isEmpty() || user.isEmpty()) return false
             e.putString("type", "xtream").putString("server", server).putString("user", user)
@@ -118,14 +122,14 @@ object Store {
             list
         }
 
-    fun isXtream(ctx: Context) = prefs(ctx).getString("type", "m3u") == "xtream"
+    fun isXtream(ctx: Context) = hasFixedServer || prefs(ctx).getString("type", "m3u") == "xtream"
 
     data class XtreamLogin(val server: String, val user: String, val pass: String)
 
     fun xtreamLogin(ctx: Context): XtreamLogin {
         val p = prefs(ctx)
         return XtreamLogin(
-            withScheme(p.getString("server", "")!!.trim().trimEnd('/')),
+            withScheme(if (hasFixedServer) fixedServer else p.getString("server", "")!!.trim().trimEnd('/')),
             p.getString("user", "")!!, p.getString("pass", "")!!,
         )
     }
