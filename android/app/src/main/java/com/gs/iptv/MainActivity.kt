@@ -12,7 +12,6 @@ import android.view.View
 import android.view.inputmethod.EditorInfo
 import android.widget.EditText
 import android.widget.LinearLayout
-import android.widget.ProgressBar
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.OnBackPressedCallback
@@ -27,7 +26,9 @@ import androidx.media3.ui.PlayerView
 import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -40,7 +41,8 @@ class MainActivity : AppCompatActivity() {
     private lateinit var liveView: View
     private lateinit var vodView: View
     private lateinit var empty: TextView
-    private lateinit var loading: ProgressBar
+    private lateinit var loading: View
+    private lateinit var loadingText: TextView
     private lateinit var clock: TextView
     private lateinit var preview: PlayerView
     private lateinit var nowName: TextView
@@ -81,6 +83,7 @@ class MainActivity : AppCompatActivity() {
         vodView = findViewById(R.id.vodView)
         empty = findViewById(R.id.empty)
         loading = findViewById(R.id.loading)
+        loadingText = findViewById(R.id.loadingText)
         clock = findViewById(R.id.clock)
         preview = findViewById(R.id.preview)
         nowName = findViewById(R.id.nowName)
@@ -151,7 +154,10 @@ class MainActivity : AppCompatActivity() {
                 toast(if (added) "Adicionado aos favoritos" else "Removido dos favoritos")
             },
         )
-        posterAdapter = PosterAdapter { _, pos -> openFullscreen(posterAdapter.items, pos) }
+        posterAdapter = PosterAdapter { item, pos ->
+            if (item.url.startsWith(Xtream.SERIES_PREFIX)) openSeries(item)
+            else openFullscreen(posterAdapter.items, pos)
+        }
 
         findViewById<RecyclerView>(R.id.liveCategories).apply {
             layoutManager = LinearLayoutManager(this@MainActivity); adapter = liveCatAdapter
@@ -221,9 +227,10 @@ class MainActivity : AppCompatActivity() {
         findViewById<TextView>(R.id.brand).text = "GS IPTV  ·  ${Store.listName(this)}"
         lifecycleScope.launch {
             loading.visibility = View.VISIBLE
+            loadingText.text = "Carregando lista…"
             empty.visibility = View.GONE
             try {
-                Store.load(this@MainActivity, force)
+                Store.load(this@MainActivity, force) { msg -> runOnUiThread { loadingText.text = msg } }
                 loaded = true
                 showTab(tab)
                 if (current == null) {
@@ -234,6 +241,27 @@ class MainActivity : AppCompatActivity() {
             } catch (e: Exception) {
                 empty.visibility = View.VISIBLE
                 empty.text = "Não foi possível carregar a lista.\n${e.message ?: ""}\n\nAperte o ícone do celular para enviar outra lista."
+            } finally {
+                loading.visibility = View.GONE
+            }
+        }
+    }
+
+    /** Série do Xtream: busca os episódios e mostra para escolher. */
+    private fun openSeries(series: Item) {
+        lifecycleScope.launch {
+            loading.visibility = View.VISIBLE
+            loadingText.text = "Abrindo ${series.name}…"
+            try {
+                val eps = withContext(Dispatchers.IO) { Xtream.episodes(this@MainActivity, series.url, series.name, series.logo) }
+                if (eps.isEmpty()) { toast("Nenhum episódio encontrado"); return@launch }
+                AlertDialog.Builder(this@MainActivity)
+                    .setTitle(series.name)
+                    .setItems(eps.map { it.name }.toTypedArray()) { _, i -> openFullscreen(eps, i) }
+                    .setNegativeButton("Voltar", null)
+                    .show()
+            } catch (e: Exception) {
+                toast("Não foi possível abrir a série")
             } finally {
                 loading.visibility = View.GONE
             }

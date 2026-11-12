@@ -86,26 +86,95 @@ object Store {
     fun setLastUrl(ctx: Context, url: String) = prefs(ctx).edit().putString("last", url).apply()
 
     // ---------- Carregar lista ----------
-    private fun cacheFile(ctx: Context) = File(ctx.filesDir, "playlist.m3u")
+    private fun cacheFile(ctx: Context) = File(ctx.filesDir, "items.tsv")
 
-    /** Baixa (se preciso) e lê a lista. Lança exceção se não houver lista nenhuma. */
-    suspend fun load(ctx: Context, force: Boolean = false): List<Item> = withContext(Dispatchers.IO) {
-        val url = playlistUrl(ctx) ?: throw IllegalStateException("Nenhuma lista configurada")
-        val cache = cacheFile(ctx)
-        val stale = !cache.exists() || cache.length() == 0L ||
-            System.currentTimeMillis() - cache.lastModified() > CACHE_HOURS * 3600_000L
-        if (force || stale) {
-            try {
-                val tmp = File(ctx.filesDir, "playlist.tmp")
-                Net.open(url, 20_000).use { input -> tmp.outputStream().use { input.copyTo(it) } }
-                if (tmp.length() > 0) { cache.delete(); tmp.renameTo(cache) }
-            } catch (e: Exception) {
-                if (!cache.exists()) throw e // sem internet e sem cópia salva
+    /**
+     * Baixa (se preciso) e organiza a lista. [progress] recebe mensagens para mostrar na tela.
+     * Usa uma cópia salva por 12 horas para abrir rápido.
+     */
+    suspend fun load(ctx: Context, force: Boolean = false, progress: (String) -> Unit = {}): List<Item> =
+        withContext(Dispatchers.IO) {
+            if (playlistUrl(ctx) == null) throw IllegalStateException("Nenhuma lista configurada")
+            val cache = cacheFile(ctx)
+            val stale = !cache.exists() || cache.length() == 0L ||
+                System.currentTimeMillis() - cache.lastModified() > CACHE_HOURS * 3600_000L
+            var list: List<Item>? = null
+            if (force || stale) {
+                try {
+                    list = if (isXtream(ctx)) Xtream.loadAll(ctx, progress) else downloadM3u(ctx, progress)
+                    if (list.isEmpty()) throw java.io.IOException("A lista veio vazia. Confira o link ou os dados.")
+                    progress("Salvando ${list.size} itens…")
+                    writeCache(cache, list)
+                } catch (e: Exception) {
+                    if (!cache.exists()) throw e // sem internet e sem cópia salva
+                    list = null
+                }
+            }
+            if (list == null) {
+                progress("Abrindo lista salva…")
+                list = readCache(cache)
+            }
+            items = list
+            list
+        }
+
+    fun isXtream(ctx: Context) = prefs(ctx).getString("type", "m3u") == "xtream"
+
+    data class XtreamLogin(val server: String, val user: String, val pass: String)
+
+    fun xtreamLogin(ctx: Context): XtreamLogin {
+        val p = prefs(ctx)
+        return XtreamLogin(
+            withScheme(p.getString("server", "")!!.trim().trimEnd('/')),
+            p.getString("user", "")!!, p.getString("pass", "")!!,
+        )
+    }
+
+    private fun downloadM3u(ctx: Context, progress: (String) -> Unit): List<Item> {
+        val url = playlistUrl(ctx)!!
+        progress("Conectando ao servidor da lista…")
+        val conn = Net.connect(url, 30_000)
+        var bytes = 0L
+        var lastShown = 0L
+        val counting = object : java.io.FilterInputStream(conn.inputStream) {
+            override fun read(b: ByteArray, off: Int, len: Int): Int {
+                val n = super.read(b, off, len)
+                if (n > 0) {
+                    bytes += n
+                    if (bytes - lastShown > 512 * 1024) {
+                        lastShown = bytes
+                        progress("Baixando lista… ${bytes / (1024 * 1024)} MB")
+                    }
+                }
+                return n
             }
         }
-        val list = cache.bufferedReader().use { parseM3u(it) }
-        items = list
-        list
+        return counting.bufferedReader().use { parseM3u(it) }
+    }
+
+    private fun clean(s: String) = s.replace('\t', ' ').replace('\n', ' ').replace('\r', ' ')
+
+    private fun writeCache(file: File, list: List<Item>) {
+        val tmp = File(file.parentFile, "items.tmp")
+        tmp.bufferedWriter().use { w ->
+            for (i in list) {
+                w.write("${i.kind.ordinal}\t${i.number}\t${clean(i.name)}\t${clean(i.group)}\t${clean(i.logo)}\t${clean(i.url)}\n")
+            }
+        }
+        file.delete()
+        tmp.renameTo(file)
+    }
+
+    private fun readCache(file: File): List<Item> {
+        val out = ArrayList<Item>()
+        val kinds = Kind.values()
+        file.bufferedReader().useLines { lines ->
+            lines.forEach { l ->
+                val f = l.split('\t')
+                if (f.size >= 6) out.add(Item(f[2], f[5], f[4], f[3], kinds.getOrElse(f[0].toIntOrNull() ?: 0) { Kind.LIVE }, f[1].toIntOrNull() ?: 0))
+            }
+        }
+        return out
     }
 
     // ---------- Leitor de M3U ----------
