@@ -54,7 +54,33 @@ object Store {
         }
     }
 
-    /** Salva o que veio do celular. Retorna false se faltou algum dado. */
+    /**
+     * Organiza o que veio do celular: link da lista + usuário + senha.
+     * - Link com username/password dentro (get.php?username=...): usa esses dados.
+     * - Link + usuário + senha: trata como servidor Xtream.
+     * Retorna o formulário pronto ou uma mensagem de erro.
+     */
+    fun normalizeForm(f: Map<String, String>): Pair<Map<String, String>?, String?> {
+        val link = f["url"].orEmpty().trim()
+        var user = f["user"].orEmpty().trim()
+        var pass = f["pass"].orEmpty().trim()
+        val server = if (hasFixedServer) fixedServer else link
+        if (server.isEmpty()) return null to "Cole o link da lista."
+        val full = withScheme(server)
+        val uri = try { java.net.URI(full) } catch (e: Exception) { return null to "Link inválido. Confira e cole de novo." }
+        val query = uri.rawQuery.orEmpty().split('&').associate {
+            val i = it.indexOf('='); if (i < 0) it to "" else it.substring(0, i) to java.net.URLDecoder.decode(it.substring(i + 1), "UTF-8")
+        }
+        if (user.isEmpty()) user = query["username"].orEmpty()
+        if (pass.isEmpty()) pass = query["password"].orEmpty()
+        if (user.isEmpty() || pass.isEmpty()) return null to "Digite o usuário e a senha."
+        val port = if (uri.port > 0) ":${uri.port}" else ""
+        val base = "${uri.scheme}://${uri.host}$port"
+        return mapOf("type" to "xtream", "server" to base, "user" to user, "pass" to pass,
+            "name" to f["name"].orEmpty()) to null
+    }
+
+    /** Salva o que veio do celular (já organizado por [normalizeForm]). */
     fun saveFromForm(ctx: Context, f: Map<String, String>): Boolean {
         val type = if (hasFixedServer) "xtream" else (f["type"] ?: "m3u")
         val e = prefs(ctx).edit()
@@ -69,7 +95,7 @@ object Store {
             if (url.isEmpty()) return false
             e.putString("type", "m3u").putString("url", url)
         }
-        e.putString("name", f["name"].orEmpty().trim().ifEmpty { "Minha lista" })
+        e.putString("name", f["name"].orEmpty().trim().ifEmpty { f["user"].orEmpty().ifEmpty { "Minha lista" } })
             .putString("epg", f["epg"].orEmpty().trim())
             .commit()
         cacheFile(ctx).delete()

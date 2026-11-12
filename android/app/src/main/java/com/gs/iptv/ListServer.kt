@@ -73,16 +73,10 @@ object ListServer {
                         if (n < 0) break
                         read += n
                     }
-                    val form = parseForm(String(body, 0, read, Charsets.UTF_8))
-                    val loginError = if (Store.hasFixedServer || form["type"] == "xtream") {
-                        val user = form["user"].orEmpty().trim()
-                        val pass = form["pass"].orEmpty().trim()
-                        val server = if (Store.hasFixedServer) Store.fixedServer else form["server"].orEmpty().trim()
-                        if (user.isEmpty() || pass.isEmpty()) "Digite o usuário e a senha."
-                        else Xtream.checkLogin(server, user, pass)
-                    } else null
-                    val ok = loginError == null && Store.saveFromForm(app, form)
-                    val msg = loginError ?: "Preencha o link da lista."
+                    val (form, formError) = Store.normalizeForm(parseForm(String(body, 0, read, Charsets.UTF_8)))
+                    val error = formError ?: Xtream.checkLogin(form!!["server"]!!, form["user"]!!, form["pass"]!!)
+                    val ok = error == null && Store.saveFromForm(app, form!!)
+                    val msg = error ?: "Não foi possível salvar. Tente de novo."
                     val json = if (ok) "{\"ok\":true}"
                     else "{\"ok\":false,\"error\":\"" + msg.replace("\"", "'") + "\"}"
                     respond(out, 200, "application/json; charset=utf-8", json)

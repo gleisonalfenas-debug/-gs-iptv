@@ -42,13 +42,13 @@
             android:id="@+id/title"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Envie sua lista pelo celular"
+            android:text="Entre pelo celular"
             android:textSize="34sp"
             android:textStyle="bold" />
 
         <TextView style="@style/GS.Step" android:text="1   Conecte o celular ao mesmo Wi-Fi da TV" />
         <TextView style="@style/GS.Step" android:text="2   Leia o QR Code com a câmera" />
-        <TextView android:id="@+id/step3" style="@style/GS.Step" android:text="3   Cole o link M3U ou os dados Xtream e toque em Enviar" />
+        <TextView android:id="@+id/step3" style="@style/GS.Step" android:text="3   Cole o link da lista, digite usuário e senha e toque em Entrar" />
 
         <LinearLayout
             android:layout_width="wrap_content"
@@ -80,7 +80,7 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="18dp"
             android:drawablePadding="10dp"
-            android:text="●  Aguardando lista…"
+            android:text="●  Aguardando login…"
             android:textColor="@color/pink_text"
             android:textSize="17sp" />
     </LinearLayout>
