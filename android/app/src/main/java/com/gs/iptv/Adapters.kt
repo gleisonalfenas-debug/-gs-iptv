@@ -73,6 +73,8 @@ class ChannelAdapter(
     /** Atualiza os itens sem perder o foco do controle remoto. */
     fun refresh() = safeNotify(rv) { notifyItemRangeChanged(0, itemCount) }
     var favorites: Set<String> = emptySet()
+    /** false = só texto (modo simples, mais rápido). */
+    var showLogos = true
 
     class VH(v: View) : RecyclerView.ViewHolder(v) {
         val logo: ImageView = v.findViewById(R.id.logo)
@@ -92,7 +94,8 @@ class ChannelAdapter(
         h.sub.text = it.group
         h.fav.visibility = if (favorites.contains(it.url)) View.VISIBLE else View.GONE
         h.itemView.isActivated = it.url == playingUrl
-        if (it.logo.isNotEmpty()) h.logo.load(it.logo) { size(160, 100) } else h.logo.setImageDrawable(null)
+        h.logo.visibility = if (showLogos) View.VISIBLE else View.GONE
+        if (showLogos && it.logo.isNotEmpty()) h.logo.load(it.logo) { size(160, 100) } else h.logo.setImageDrawable(null)
         h.itemView.setOnClickListener { _ ->
             val p = h.bindingAdapterPosition
             if (p != RecyclerView.NO_POSITION) onClick(items[p], p)

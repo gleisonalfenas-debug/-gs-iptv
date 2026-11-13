@@ -47,6 +47,9 @@ class MainActivity : AppCompatActivity() {
     private lateinit var clock: TextView
     private lateinit var channelsList: TvList
     private lateinit var cardFan: CardFan
+    private lateinit var vodSimple: TvList
+    private lateinit var vodSimpleAdapter: ChannelAdapter
+    private var lite = true
     private lateinit var spiral: SpiralView
     private lateinit var gamesView: View
     private lateinit var gamesList: TvList
@@ -89,6 +92,18 @@ class MainActivity : AppCompatActivity() {
         clock = findViewById(R.id.clock)
         channelsList = findViewById(R.id.channels)
         cardFan = findViewById(R.id.cardFan)
+        lite = Store.liteOn(this)
+        vodSimple = findViewById(R.id.vodSimple)
+        vodSimpleAdapter = ChannelAdapter(
+            onClick = { item, pos ->
+                if (item.url.startsWith(Xtream.SERIES_PREFIX)) openSeries(item) else openFullscreen(vodSimpleAdapter.items, pos)
+            },
+            onLongClick = { _, _ -> },
+        ).apply { showLogos = false }
+        vodSimple.layoutManager = LinearLayoutManager(this)
+        vodSimple.adapter = vodSimpleAdapter
+        vodSimple.itemAnimator = null
+        vodSimple.setHasFixedSize(true)
         spiral = findViewById(R.id.spiral)
         gamesView = findViewById(R.id.gamesView)
         gamesList = findViewById(R.id.gamesList)
@@ -137,7 +152,7 @@ class MainActivity : AppCompatActivity() {
                 .show()
         }
         setupPanel()
-        applyBgLogo()
+        applyLite()
         Http.warm(Store.playlistUrl(this)) // já resolve o endereço do servidor
         if (!Store.hasList(this)) openSendList() else startup()
     }
@@ -270,15 +285,16 @@ class MainActivity : AppCompatActivity() {
 
     /** Liga/desliga relógio fixo, logo no canto dos canais e logo animado do fundo. */
     private fun openPreferences(rows: List<Pair<String, String>>) {
-        val labels = arrayOf("Relógio fixo na tela dos canais", "Logo GS no canto dos canais", "Logo animado no fundo do menu")
-        val checked = booleanArrayOf(Store.clockOn(this), Store.cornerLogoOn(this), Store.bgLogoOn(this))
+        val labels = arrayOf("Modo simples (mais rápido)", "Relógio fixo na tela dos canais", "Logo no canto dos canais", "Logo animado no fundo do menu")
+        val checked = booleanArrayOf(Store.liteOn(this), Store.clockOn(this), Store.cornerLogoOn(this), Store.bgLogoOn(this))
         AlertDialog.Builder(this)
             .setTitle("Preferências")
             .setMultiChoiceItems(labels, checked) { _, i, on ->
                 when (i) {
-                    0 -> Store.setClock(this, on)
-                    1 -> Store.setCornerLogo(this, on)
-                    2 -> { Store.setBgLogo(this, on); applyBgLogo() }
+                    0 -> { Store.setLite(this, on); lite = on; applyLite(); showTab(tab) }
+                    1 -> Store.setClock(this, on)
+                    2 -> Store.setCornerLogo(this, on)
+                    3 -> { Store.setBgLogo(this, on); applyBgLogo() }
                 }
             }
             .setPositiveButton("OK") { _, _ -> showAccount(rows) }
@@ -286,7 +302,17 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun applyBgLogo() {
-        findViewById<View>(R.id.bgLogo).visibility = if (Store.bgLogoOn(this)) View.VISIBLE else View.GONE
+        findViewById<View>(R.id.bgLogo).visibility = if (Store.bgLogoOn(this) && !lite) View.VISIBLE else View.GONE
+    }
+
+    /** Modo simples: fundo liso, listas só com texto, sem cartas animadas. */
+    private fun applyLite() {
+        val root = (findViewById<View>(R.id.bgLogo).parent as View)
+        if (lite) root.setBackgroundColor(android.graphics.Color.parseColor("#240407")) else root.setBackgroundResource(R.drawable.bg_main)
+        vodSimple.visibility = if (lite) View.VISIBLE else View.GONE
+        findViewById<View>(R.id.fanBox).visibility = if (lite) View.GONE else View.VISIBLE
+        channelAdapter.showLogos = !lite
+        applyBgLogo()
     }
 
     private fun confirmExit() {
@@ -414,7 +440,10 @@ class MainActivity : AppCompatActivity() {
         channelsList.onRight = {}
         vodCatList.onUp = toTabs
         vodCatList.onLeft = {}
-        vodCatList.onRight = { cardFan.requestFocus() }
+        vodCatList.onRight = { if (lite) vodSimple.focusPosition(0) else cardFan.requestFocus() }
+        vodSimple.onLeft = { vodCatList.focusPosition(vodCatAdapter.selected) }
+        vodSimple.onUp = toTabs
+        vodSimple.onRight = {}
         cardFan.onUp = toTabs
         gamesList.onUp = toTabs
         spiral.onUp = toTabs
@@ -439,7 +468,7 @@ class MainActivity : AppCompatActivity() {
         when {
             sectionPanel.visibility == View.VISIBLE -> showPanel(kindsFor(tab).firstOrNull { !Store.isLoaded(it) })
             tab == Tab.TV -> liveCatList.focusPosition(liveCatAdapter.selected)
-            tab == Tab.HIGHLIGHTS -> spiral.requestFocus()
+            tab == Tab.HIGHLIGHTS && !lite -> spiral.requestFocus()
             tab == Tab.GAMES -> gamesList.focusPosition(0)
             else -> vodCatList.focusPosition(vodCatAdapter.selected)
         }
@@ -475,6 +504,12 @@ class MainActivity : AppCompatActivity() {
             empty.visibility = View.GONE
             gamesView.visibility = View.VISIBLE
             loadGames()
+        } else if (t == Tab.HIGHLIGHTS && lite) {
+            liveView.visibility = View.GONE
+            vodView.visibility = View.VISIBLE
+            vodCats = listOf("Destaques" to list)
+            vodCatAdapter.items = vodCats.map { it.first }
+            showVodCategory(0)
         } else if (t == Tab.HIGHLIGHTS) {
             liveView.visibility = View.GONE
             vodView.visibility = View.GONE
@@ -507,7 +542,8 @@ class MainActivity : AppCompatActivity() {
 
     private fun showVodCategory(i: Int) {
         val cat = vodCats.getOrNull(i) ?: return
-        cardFan.showItems(cat.second)
+        if (lite) { vodSimpleAdapter.items = cat.second; vodSimple.scrollToPosition(0) }
+        else cardFan.showItems(cat.second)
     }
 
     // ---------------- Carregar lista (uma seção de cada vez) ----------------

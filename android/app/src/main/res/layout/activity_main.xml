@@ -138,7 +138,16 @@
                 android:layout_width="260dp"
                 android:layout_height="match_parent" />
 
+            <com.gs.iptv.TvList
+                android:id="@+id/vodSimple"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_marginStart="12dp"
+                android:layout_weight="1"
+                android:visibility="gone" />
+
             <LinearLayout
+                android:id="@+id/fanBox"
                 android:layout_width="0dp"
                 android:layout_height="match_parent"
                 android:layout_marginStart="16dp"

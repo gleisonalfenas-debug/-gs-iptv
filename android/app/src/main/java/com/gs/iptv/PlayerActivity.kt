@@ -103,7 +103,7 @@ class PlayerActivity : AppCompatActivity() {
         index = savedInstanceState?.getInt("index") ?: intent.getIntExtra("index", 0)
         findViewById<GlobeView>(R.id.cornerLogo).apply {
             compact = true
-            visibility = if (Store.cornerLogoOn(this@PlayerActivity)) View.VISIBLE else View.GONE
+            visibility = if (Store.cornerLogoOn(this@PlayerActivity) && !Store.liteOn(this@PlayerActivity)) View.VISIBLE else View.GONE
         }
         setupTrackPanel()
         clock = findViewById(R.id.clock)
@@ -121,6 +121,7 @@ class PlayerActivity : AppCompatActivity() {
         )
         catList.layoutManager = LinearLayoutManager(this); catList.adapter = catAdapter; catList.itemAnimator = null
         chList.layoutManager = LinearLayoutManager(this); chList.adapter = chAdapter; chList.itemAnimator = null
+        chAdapter.showLogos = !Store.liteOn(this)
         // Direções do controle na lista por cima do vídeo
         chList.onUp = {}
         chList.onRight = {}

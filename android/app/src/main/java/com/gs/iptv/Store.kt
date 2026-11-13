@@ -89,6 +89,9 @@ object Store {
     var showClock: Boolean = false
     fun clockOn(ctx: Context) = prefs(ctx).getBoolean("show_clock", false)
     fun setClock(ctx: Context, on: Boolean) = prefs(ctx).edit().putBoolean("show_clock", on).apply()
+    /** Modo simples: fundo liso, listas só com texto, sem animações (mais rápido). */
+    fun liteOn(ctx: Context) = prefs(ctx).getBoolean("lite", true)
+    fun setLite(ctx: Context, on: Boolean) = prefs(ctx).edit().putBoolean("lite", on).apply()
     fun cornerLogoOn(ctx: Context) = prefs(ctx).getBoolean("show_logo", true)
     fun setCornerLogo(ctx: Context, on: Boolean) = prefs(ctx).edit().putBoolean("show_logo", on).apply()
     fun bgLogoOn(ctx: Context) = prefs(ctx).getBoolean("show_bg_logo", true)
