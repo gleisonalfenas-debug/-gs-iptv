@@ -209,7 +209,7 @@ class ContinueAdapter(
         val c = p.context
         val root = LinearLayout(c).apply {
             orientation = LinearLayout.VERTICAL
-            layoutParams = RecyclerView.LayoutParams(c.dp(250), ViewGroup.LayoutParams.WRAP_CONTENT).apply { marginEnd = c.dp(16) }
+            layoutParams = RecyclerView.LayoutParams(c.dp(140), ViewGroup.LayoutParams.WRAP_CONTENT).apply { marginEnd = c.dp(12) }
             isFocusable = true
         }
         val frame = FrameLayout(c).apply { foreground = c.getDrawable(R.drawable.bg_focus_ring) }
@@ -218,10 +218,10 @@ class ContinueAdapter(
             max = 1000; progressDrawable = c.getDrawable(R.drawable.progress_red)
         }
         frame.addView(img, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
-        frame.addView(bar, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, c.dp(4), Gravity.BOTTOM))
-        val title = TextView(c).apply { setTextSize(TypedValue.COMPLEX_UNIT_SP, 15f); setTypeface(null, android.graphics.Typeface.BOLD); maxLines = 1; setPadding(0, c.dp(8), 0, 0) }
-        val sub = TextView(c).apply { setTextSize(TypedValue.COMPLEX_UNIT_SP, 12f); setTextColor(Color.parseColor("#8B8F9C")) }
-        root.addView(frame, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, c.dp(130)))
+        frame.addView(bar, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, c.dp(3), Gravity.BOTTOM))
+        val title = TextView(c).apply { setTextSize(TypedValue.COMPLEX_UNIT_SP, 12f); setTypeface(null, android.graphics.Typeface.BOLD); maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END; setPadding(0, c.dp(5), 0, 0) }
+        val sub = TextView(c).apply { setTextSize(TypedValue.COMPLEX_UNIT_SP, 10f); setTextColor(Color.parseColor("#8B8F9C")) }
+        root.addView(frame, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, c.dp(78)))
         root.addView(title); root.addView(sub)
         return VH(root, img, bar, title, sub, frame)
     }
