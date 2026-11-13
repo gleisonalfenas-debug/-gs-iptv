@@ -28,7 +28,11 @@ class CategoryAdapter(
         get() = sel
         set(v) {
             val old = sel; sel = v
-            safeNotify(rv) { if (old < itemCount) notifyItemChanged(old); if (v < itemCount) notifyItemChanged(v) }
+            // Marca direto nas linhas visíveis (sem redesenhar a lista: não perde o foco nem trava)
+            val r = rv
+            if (r == null) return
+            r.findViewHolderForAdapterPosition(old)?.itemView?.isActivated = false
+            r.findViewHolderForAdapterPosition(v)?.itemView?.isActivated = true
         }
 
     class VH(val text: TextView) : RecyclerView.ViewHolder(text)

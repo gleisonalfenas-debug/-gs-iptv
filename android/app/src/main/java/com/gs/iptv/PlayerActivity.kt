@@ -213,13 +213,8 @@ class PlayerActivity : AppCompatActivity() {
 
     // ---------- Lista de canais / categorias por cima do vídeo ----------
     private fun openOverlay(withCategories: Boolean) {
-        val tv = Store.tab(Tab.TV)
         val favs = Store.favorites(this)
-        cats = buildList {
-            if (favs.isNotEmpty()) add("★ Favoritos" to tv.items.filter { favs.contains(it.url) })
-            add("Todos" to tv.items)
-            addAll(tv.groups)
-        }
+        cats = Store.liveCategories(this)
         catAdapter.items = cats.map { it.first }
         val curCat = queue.getOrNull(index)?.group
         cats.indexOfFirst { it.first == curCat }.takeIf { it >= 0 }?.let { catAdapter.selected = it }

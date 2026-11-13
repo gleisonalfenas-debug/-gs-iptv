@@ -3,6 +3,7 @@ package com.gs.iptv
 import android.content.Context
 import android.content.SharedPreferences
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import java.io.BufferedReader
 import java.io.File
@@ -41,7 +42,9 @@ object Store {
     // Tira "Canais", "Filmes", "Séries", "VOD" do começo do nome da categoria
     private val prefixCanais = Regex("^\\s*(canais?|filmes?|s[ée]ries?|vod|movies?)\\s*[:|/•·–-]+\\s*|^\\s*(canais?|filmes?|s[ée]ries?)\\s+(?=\\S)", RegexOption.IGNORE_CASE)
 
-    fun make(name: String, url: String, logo: String, group: String, kind: Kind, number: Int): Item {
+    private val makeLock = Any()
+
+    fun make(name: String, url: String, logo: String, group: String, kind: Kind, number: Int): Item = synchronized(makeLock) {
         // Tira o "Canais" do começo do nome da categoria (ex.: "CANAIS | ESPORTES" -> "ESPORTES")
         val shown = group.replace(prefixCanais, "").ifEmpty { group }
         val g = groupPool.getOrPut(shown) { shown }
@@ -53,7 +56,7 @@ object Store {
                 else -> 0
             }
         }
-        return Item(name, url, logo, g, kind, number, sec)
+        Item(name, url, logo, g, kind, number, sec)
     }
 
     /** Links do Xtream são guardados curtos ("xt:live/123.ts") e montados na hora de tocar. */
@@ -202,7 +205,16 @@ object Store {
     }
 
     /** Baixa (ou abre a cópia salva) só de uma seção: canais, filmes ou séries. */
+    private val loadMutex = kotlinx.coroutines.sync.Mutex()
+
+    /** Uma carga de cada vez (evita duas cargas da mesma parte se atrapalhando). */
     suspend fun loadSection(ctx: Context, kind: Kind, force: Boolean = false, progress: (String) -> Unit = {}): List<Item> =
+        loadMutex.withLock {
+            if (!force) synchronized(loaded) { loaded[kind] }?.let { return@withLock it }
+            loadSectionLocked(ctx, kind, force, progress)
+        }
+
+    private suspend fun loadSectionLocked(ctx: Context, kind: Kind, force: Boolean, progress: (String) -> Unit): List<Item> =
         withContext(Dispatchers.IO) {
             if (playlistUrl(ctx) == null) throw IllegalStateException("Nenhuma lista configurada")
             val started = System.currentTimeMillis()
@@ -222,7 +234,7 @@ object Store {
             }
             progress("Abrindo ${label(kind)}…")
             val list = if (cache.exists()) readCache(cache) else emptyList()
-            groupPool.clear()
+            synchronized(makeLock) { groupPool.clear() }
             synchronized(loaded) { loaded[kind] = list }
             progress("Organizando ${list.size} itens…")
             rebuild()
@@ -255,6 +267,17 @@ object Store {
             map[t] = TabData(tabItems, groups.map { it.key to it.value as List<Item> })
         }
         tabs = map
+    }
+
+    /** Categorias da TV (mesma lista na tela inicial e na lista do OK). */
+    fun liveCategories(ctx: Context): List<Pair<String, List<Item>>> {
+        val tv = tab(Tab.TV)
+        val favs = favorites(ctx)
+        return buildList {
+            if (favs.isNotEmpty()) add("★ Favoritos" to tv.items.filter { favs.contains(it.url) })
+            add("Todos" to tv.items)
+            addAll(tv.groups)
+        }
     }
 
     fun tab(t: Tab): TabData = tabs[t] ?: TabData(emptyList(), emptyList())
@@ -303,7 +326,7 @@ object Store {
             f.delete()
             tmps[k]!!.renameTo(f)
         }
-        groupPool.clear()
+        synchronized(makeLock) { groupPool.clear() }
     }
 
     private fun line(i: Item) =

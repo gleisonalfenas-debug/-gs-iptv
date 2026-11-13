@@ -1,13 +1,44 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@drawable/bg_main"
-    android:orientation="vertical"
-    android:paddingHorizontal="32dp"
-    android:paddingTop="18dp"
-    android:paddingBottom="24dp">
+    android:background="@drawable/bg_main">
+
+    <!-- Logo animado do GS IPTV no fundo -->
+    <FrameLayout
+        android:id="@+id/bgLogo"
+        android:layout_width="560dp"
+        android:layout_height="560dp"
+        android:layout_gravity="center"
+        android:alpha="0.13"
+        android:importantForAccessibility="no">
+
+        <ImageView
+            android:id="@+id/bgRing"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:src="@drawable/ic_ring" />
+
+        <TextView
+            android:id="@+id/bgGs"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:letterSpacing="-0.05"
+            android:text="GS"
+            android:textColor="#FFFFFF"
+            android:textSize="170sp"
+            android:textStyle="bold" />
+    </FrameLayout>
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical"
+        android:paddingHorizontal="32dp"
+        android:paddingTop="18dp"
+        android:paddingBottom="24dp">
 
     <!-- Topo: logo, ícones e relógio -->
     <LinearLayout
@@ -353,3 +384,4 @@
         android:textColor="@color/pink_text"
         android:textSize="13sp" />
 </LinearLayout>
+</FrameLayout>

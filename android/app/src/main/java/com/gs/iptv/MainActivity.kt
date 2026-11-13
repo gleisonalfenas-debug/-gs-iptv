@@ -86,6 +86,7 @@ class MainActivity : AppCompatActivity() {
 
         buildTabs()
         setupLists()
+        animateBackgroundLogo()
 
         findViewById<View>(R.id.btnSearch).setOnClickListener { openSearch() }
         findViewById<View>(R.id.btnSend).setOnClickListener { openSendList() }
@@ -121,6 +122,25 @@ class MainActivity : AppCompatActivity() {
         setupPanel()
         Http.warm(Store.playlistUrl(this)) // já resolve o endereço do servidor
         if (!Store.hasList(this)) openSendList() else startup()
+    }
+
+    /** Logo GS girando devagar no fundo da tela (leve: usa camada de hardware). */
+    private fun animateBackgroundLogo() {
+        val ring = findViewById<View>(R.id.bgRing)
+        val gs = findViewById<View>(R.id.bgGs)
+        ring.setLayerType(View.LAYER_TYPE_HARDWARE, null)
+        android.animation.ObjectAnimator.ofFloat(ring, View.ROTATION, 0f, 360f).apply {
+            duration = 24_000
+            repeatCount = android.animation.ValueAnimator.INFINITE
+            interpolator = android.view.animation.LinearInterpolator()
+            start()
+        }
+        android.animation.ObjectAnimator.ofFloat(gs, View.ALPHA, 0.7f, 1f).apply {
+            duration = 3_000
+            repeatCount = android.animation.ValueAnimator.INFINITE
+            repeatMode = android.animation.ValueAnimator.REVERSE
+            start()
+        }
     }
 
     private fun confirmExit() {
@@ -278,6 +298,7 @@ class MainActivity : AppCompatActivity() {
         val missing = kindsFor(t).filterNot { Store.isLoaded(it) }
         if (missing.isNotEmpty()) {
             // Seção ainda não baixada: se já tem cópia salva abre direto, senão mostra o painel
+            if (loadingNow) return
             if (missing.all { Store.hasFreshCache(this, it) }) { loadKinds(missing, force = false); return }
             liveView.visibility = View.GONE
             vodView.visibility = View.GONE
@@ -294,12 +315,7 @@ class MainActivity : AppCompatActivity() {
         if (t == Tab.TV) {
             liveView.visibility = View.VISIBLE
             vodView.visibility = View.GONE
-            val favs = Store.favorites(this)
-            liveCats = buildList {
-                if (favs.isNotEmpty()) add("★ Favoritos" to list.filter { favs.contains(it.url) })
-                add("Todos" to list)
-                addAll(data.groups)
-            }
+            liveCats = Store.liveCategories(this)
             liveCatAdapter.items = liveCats.map { it.first }
             showLiveCategory(0)
         } else {
@@ -370,7 +386,11 @@ class MainActivity : AppCompatActivity() {
         if (cached.isNotEmpty()) loadKinds(cached, force = false) else { showTab(tab); tabViews[tab.ordinal].requestFocus() }
     }
 
+    private var loadingNow = false
+
     private fun loadKinds(kinds: List<Kind>, force: Boolean) {
+        if (loadingNow) return
+        loadingNow = true
         lifecycleScope.launch {
             sectionPanel.visibility = View.GONE
             loading.visibility = View.VISIBLE
@@ -389,6 +409,7 @@ class MainActivity : AppCompatActivity() {
                 }
             }
             loading.visibility = View.GONE
+            loadingNow = false
             loaded = true
             if (failed) showPanel(kinds.first()) else showTab(tab)
             if (sectionPanel.visibility != View.VISIBLE) tabViews[tab.ordinal].requestFocus()
@@ -483,6 +504,15 @@ class MainActivity : AppCompatActivity() {
 
     override fun onStart() {
         super.onStart()
+        if (loaded && tab == Tab.TV && Store.isLoaded(Kind.LIVE)) {
+            val sel = liveCatAdapter.selected
+            val name = liveCats.getOrNull(sel)?.first
+            liveCats = Store.liveCategories(this)
+            liveCatAdapter.items = liveCats.map { it.first }
+            val i = liveCats.indexOfFirst { it.first == name }.coerceAtLeast(0)
+            liveCatAdapter.selected = i
+            showLiveCategory(i)
+        }
         ui.post(clockTick)
         // Volta a tocar a prévia ao retornar da tela cheia
     }
