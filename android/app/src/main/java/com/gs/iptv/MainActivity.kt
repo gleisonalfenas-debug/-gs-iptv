@@ -44,14 +44,13 @@ class MainActivity : AppCompatActivity() {
     private lateinit var sectionPanel: View
     private lateinit var clock: TextView
     private lateinit var channelsList: TvList
-    private lateinit var gridList: TvList
+    private lateinit var cardFan: CardFan
     private lateinit var liveCatList: TvList
     private lateinit var vodCatList: TvList
 
     private lateinit var liveCatAdapter: CategoryAdapter
     private lateinit var vodCatAdapter: CategoryAdapter
     private lateinit var channelAdapter: ChannelAdapter
-    private lateinit var posterAdapter: PosterAdapter
 
     private var liveCats: List<Pair<String, List<Item>>> = emptyList()
     private var vodCats: List<Pair<String, List<Item>>> = emptyList()
@@ -82,7 +81,7 @@ class MainActivity : AppCompatActivity() {
         loadingText = findViewById(R.id.loadingText)
         clock = findViewById(R.id.clock)
         channelsList = findViewById(R.id.channels)
-        gridList = findViewById(R.id.grid)
+        cardFan = findViewById(R.id.cardFan)
         findViewById<TextView>(R.id.brand).text = Store.listName(this).let { "GS IPTV  ·  $it" }
 
         buildTabs()
@@ -220,9 +219,15 @@ class MainActivity : AppCompatActivity() {
                 toast(if (added) "Adicionado aos favoritos" else "Removido dos favoritos")
             },
         )
-        posterAdapter = PosterAdapter { item, pos ->
+        val vodTitle = findViewById<TextView>(R.id.vodTitle)
+        val vodMeta = findViewById<TextView>(R.id.vodMeta)
+        cardFan.onPick = { item, pos ->
             if (item.url.startsWith(Xtream.SERIES_PREFIX)) openSeries(item)
-            else openFullscreen(posterAdapter.items, pos)
+            else openFullscreen(cardFan.items, pos)
+        }
+        cardFan.onChange = { item ->
+            vodTitle.text = item?.name ?: ""
+            vodMeta.text = item?.group ?: ""
         }
 
         liveCatList = findViewById(R.id.liveCategories)
@@ -240,19 +245,14 @@ class MainActivity : AppCompatActivity() {
         channelsList.onRight = {}
         vodCatList.onUp = toTabs
         vodCatList.onLeft = {}
-        vodCatList.onRight = { gridList.focusPosition(0) }
-        gridList.onUp = toTabs
-        gridList.onLeft = { vodCatList.focusPosition(vodCatAdapter.selected) }
-        gridList.onRight = {}
+        vodCatList.onRight = { cardFan.requestFocus() }
+        cardFan.onUp = toTabs
+        cardFan.onLeftEdge = { vodCatList.focusPosition(vodCatAdapter.selected) }
         channelsList.setHasFixedSize(true)
-        gridList.setHasFixedSize(true)
-        gridList.setItemViewCacheSize(10)
         channelsList.layoutManager = LinearLayoutManager(this)
         channelsList.adapter = channelAdapter
-        gridList.layoutManager = GridLayoutManager(this, 5)
-        gridList.adapter = posterAdapter
         // Sem animação de troca: assim o foco do controle não "pula"
-        listOf(liveCatList, vodCatList, channelsList, gridList).forEach { it.itemAnimator = null }
+        listOf(liveCatList, vodCatList, channelsList).forEach { it.itemAnimator = null }
         // Botões do topo: para baixo vai para as abas
         listOf(R.id.btnSearch, R.id.btnSend, R.id.btnRefresh, R.id.btnSettings).forEach { id ->
             findViewById<View>(id).setOnKeyListener { _, code, ev ->
@@ -323,8 +323,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun showVodCategory(i: Int) {
         val cat = vodCats.getOrNull(i) ?: return
-        posterAdapter.items = cat.second
-        gridList.scrollToPosition(0)
+        cardFan.setItems(cat.second)
     }
 
     // ---------------- Carregar lista (uma seção de cada vez) ----------------
@@ -472,7 +471,7 @@ class MainActivity : AppCompatActivity() {
             vodCats = listOf(entry) + vodCats.filterNot { it.first.startsWith("Busca:") }
             vodCatAdapter.items = vodCats.map { it.first }
             showVodCategory(0)
-            gridList.post { gridList.getChildAt(0)?.requestFocus() }
+            cardFan.post { cardFan.requestFocus() }
         }
     }
 
