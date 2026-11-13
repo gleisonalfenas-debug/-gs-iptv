@@ -83,7 +83,7 @@ abstract class PosterStage(ctx: Context, attrs: AttributeSet?) : FrameLayout(ctx
         setOnFocusChangeListener { _, _ -> updateRing() }
     }
 
-    fun setItems(list: List<Item>) {
+    fun showItems(list: List<Item>) {
         items = list
         index = 0
         layoutCards(0, 0)

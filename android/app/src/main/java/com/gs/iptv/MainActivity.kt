@@ -307,7 +307,7 @@ class MainActivity : AppCompatActivity() {
             liveView.visibility = View.GONE
             vodView.visibility = View.GONE
             highlightView.visibility = if (list.isEmpty()) View.GONE else View.VISIBLE
-            spiral.setItems(list)
+            spiral.showItems(list)
         } else if (t == Tab.TV) {
             liveView.visibility = View.VISIBLE
             vodView.visibility = View.GONE
@@ -335,7 +335,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun showVodCategory(i: Int) {
         val cat = vodCats.getOrNull(i) ?: return
-        cardFan.setItems(cat.second)
+        cardFan.showItems(cat.second)
     }
 
     // ---------------- Carregar lista (uma seção de cada vez) ----------------
