@@ -99,8 +99,8 @@ class TileAdapter(
         val ctx = p.context
         val d = ctx.resources.displayMetrics.density
         val poster = row.posters && !lite
-        val w = ((if (poster) 128 else 180) * d).toInt()
-        val hgt = ((if (poster) 192 else 100) * d).toInt()
+        val w = ((if (poster) 112 else 180) * d).toInt()
+        val hgt = ((if (poster) 168 else 100) * d).toInt()
         val root = FrameLayout(ctx).apply {
             layoutParams = RecyclerView.LayoutParams(w, hgt).apply { marginEnd = (14 * d).toInt() }
             isFocusable = true

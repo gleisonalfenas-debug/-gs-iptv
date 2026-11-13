@@ -60,7 +60,7 @@
                     <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
                         android:orientation="vertical" android:paddingHorizontal="28dp" android:paddingBottom="20dp">
 
-                        <FrameLayout android:id="@+id/hero" android:layout_width="match_parent" android:layout_height="210dp"
+                        <FrameLayout android:id="@+id/hero" android:layout_width="match_parent" android:layout_height="160dp"
                             android:background="@drawable/bg_card" android:focusable="true" android:foreground="@drawable/bg_focus_ring">
                             <ImageView android:id="@+id/heroImg" android:layout_width="match_parent" android:layout_height="match_parent"
                                 android:importantForAccessibility="no" android:scaleType="centerCrop" />
@@ -70,7 +70,7 @@
                                 <TextView android:id="@+id/heroKind" android:layout_width="wrap_content" android:layout_height="wrap_content"
                                     android:letterSpacing="0.15" android:text="LANÇAMENTO" android:textColor="@color/gold" android:textSize="13sp" android:textStyle="bold" />
                                 <TextView android:id="@+id/heroTitle" android:layout_width="match_parent" android:layout_height="wrap_content"
-                                    android:layout_marginEnd="300dp" android:ellipsize="end" android:maxLines="1" android:textSize="38sp" android:textStyle="bold" />
+                                    android:layout_marginEnd="300dp" android:ellipsize="end" android:maxLines="1" android:textSize="30sp" android:textStyle="bold" />
                                 <TextView android:id="@+id/heroMeta" android:layout_width="wrap_content" android:layout_height="wrap_content"
                                     android:textColor="#D0D3DB" android:textSize="15sp" />
                                 <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="10dp"
@@ -137,6 +137,9 @@
                         <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="8dp"
                             android:background="@drawable/bg_card" android:gravity="center" android:paddingVertical="10dp"
                             android:text="Segure OK  ★  Favoritar" android:textColor="#D0D3DB" android:textSize="15sp" />
+                        <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="8dp"
+                            android:background="@drawable/bg_card" android:gravity="center" android:paddingVertical="10dp"
+                            android:text="▶  Seta direita: programação do dia" android:textColor="#D0D3DB" android:textSize="15sp" />
                     </LinearLayout>
                 </LinearLayout>
 

@@ -613,7 +613,8 @@ class PlayerActivity : AppCompatActivity() {
                     KeyEvent.KEYCODE_DPAD_DOWN, KeyEvent.KEYCODE_CHANNEL_DOWN -> { play(index + 1); return true }
                     KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER, KeyEvent.KEYCODE_NUMPAD_ENTER -> { openOverlay(false); return true }
                     KeyEvent.KEYCODE_DPAD_LEFT -> { openOverlay(true); return true }
-                    KeyEvent.KEYCODE_DPAD_RIGHT, KeyEvent.KEYCODE_INFO -> { showOsd(); return true }
+                    KeyEvent.KEYCODE_DPAD_RIGHT, KeyEvent.KEYCODE_GUIDE -> { queue.getOrNull(index)?.let { ch -> Guide.show(this) { } }; showOsd(); return true }
+                    KeyEvent.KEYCODE_INFO -> { showOsd(); return true }
                 }
             }
         }

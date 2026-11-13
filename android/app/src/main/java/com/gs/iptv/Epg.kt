@@ -70,6 +70,35 @@ object Epg {
         return out.sortedBy { it.start }
     }
 
+    /** Programação completa de hoje (com descrição), para o guia do canal. */
+    fun dayGuide(ctx: Context, item: Item, done: (List<Pair<Prog, String>>) -> Unit) {
+        if (!Store.isXtream(ctx)) { done(emptyList()); return }
+        val id = streamId(item) ?: run { done(emptyList()); return }
+        val app = ctx.applicationContext
+        exec.execute {
+            val list = try {
+                val l = Store.xtreamLogin(app)
+                val url = "${l.server}/player_api.php?username=${enc(l.user)}&password=${enc(l.pass)}&action=get_simple_data_table&stream_id=$id"
+                val arr = JSONObject(Net.getText(url, 12_000)).optJSONArray("epg_listings")
+                val cal = java.util.Calendar.getInstance().apply {
+                    set(java.util.Calendar.HOUR_OF_DAY, 0); set(java.util.Calendar.MINUTE, 0); set(java.util.Calendar.SECOND, 0); set(java.util.Calendar.MILLISECOND, 0)
+                }
+                val dayStart = cal.timeInMillis
+                val dayEnd = dayStart + 24 * 3600_000L
+                val out = ArrayList<Pair<Prog, String>>()
+                if (arr != null) for (i in 0 until arr.length()) {
+                    val o = arr.optJSONObject(i) ?: continue
+                    val start = o.optString("start_timestamp").toLongOrNull()?.times(1000) ?: continue
+                    val end = o.optString("stop_timestamp").toLongOrNull()?.times(1000) ?: continue
+                    if (end <= dayStart || start >= dayEnd) continue
+                    out.add(Prog(decode(o.optString("title")).ifBlank { "Programação" }, start, end) to decode(o.optString("description")))
+                }
+                out.distinctBy { it.first.start }.sortedBy { it.first.start }
+            } catch (_: Exception) { emptyList() }
+            main.post { done(list) }
+        }
+    }
+
     private fun decode(s: String): String = try {
         String(Base64.decode(s, Base64.DEFAULT), Charsets.UTF_8).trim()
     } catch (_: Exception) { s }

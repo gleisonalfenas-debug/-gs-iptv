@@ -376,7 +376,12 @@ class MainActivity : AppCompatActivity() {
         tvCats.layoutManager = LinearLayoutManager(this); tvCats.adapter = catAdapter; tvCats.itemAnimator = null
         tvList.layoutManager = LinearLayoutManager(this); tvList.adapter = liveAdapter; tvList.itemAnimator = null
         tvCats.onLeft = toRail; tvCats.onUp = {}; tvCats.onRight = { tvList.focusPosition(0) }
-        tvList.onLeft = { tvCats.focusPosition(catAdapter.selected) }; tvList.onUp = {}; tvList.onRight = {}
+        tvList.onLeft = { tvCats.focusPosition(catAdapter.selected) }; tvList.onUp = {}
+        // seta direita no canal: programação do dia
+        tvList.onRight = {
+            val pos = tvList.focusedChild?.let { tvList.getChildAdapterPosition(it) } ?: -1
+            liveAdapter.items.getOrNull(pos)?.let { ch -> Guide.show(this) { current = ch; openFullscreen(liveAdapter.items, pos) } }
+        }
     }
 
     private fun showTv() {
