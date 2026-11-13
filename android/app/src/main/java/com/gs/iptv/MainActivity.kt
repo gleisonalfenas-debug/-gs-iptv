@@ -61,6 +61,7 @@ class MainActivity : AppCompatActivity() {
     private var vodCats: List<Pair<String, List<Item>>> = emptyList()
 
     private var player: ExoPlayer? = null
+    private var smart: SmartPlay? = null
     private var current: Item? = null
     private var loaded = false
 
@@ -117,6 +118,14 @@ class MainActivity : AppCompatActivity() {
             AlertDialog.Builder(this)
                 .setTitle("O app fechou da última vez")
                 .setMessage("Tire uma foto desta tela e envie para o suporte:\n\n" + crash.lines().take(14).joinToString("\n"))
+                .setPositiveButton("OK", null)
+                .show()
+        }
+        findViewById<TextView>(R.id.version).text = "v${BuildConfig.VERSION_NAME}"
+        Store.justUpdated(this)?.let { v ->
+            AlertDialog.Builder(this)
+                .setTitle("GS IPTV atualizado")
+                .setMessage("Agora você está na versão $v.")
                 .setPositiveButton("OK", null)
                 .show()
         }
@@ -398,25 +407,19 @@ class MainActivity : AppCompatActivity() {
     }
 
     // ---------------- Player ----------------
-    private fun ensurePlayer(): ExoPlayer {
-        player?.let { return it }
+    private fun ensurePlayer(): SmartPlay {
+        smart?.let { return it }
         val p = PlayerFactory.create(this)
-        p.addListener(object : Player.Listener {
-            override fun onPlayerError(error: PlaybackException) {
-                nowGroup.text = "Canal indisponível no momento"
-            }
-        })
+        val sp = SmartPlay(this, p) { nowGroup.text = "Canal indisponível no momento" }
         preview.player = p
         player = p
-        return p
+        smart = sp
+        return sp
     }
 
     private fun playPreview(item: Item) {
         current = item
-        val p = ensurePlayer()
-        p.setMediaItem(MediaItem.fromUri(Store.playUrl(this, item)))
-        p.prepare()
-        p.playWhenReady = true
+        ensurePlayer().play(item)
         nowName.text = if (item.number > 0) "${item.number}  ${item.name}" else item.name
         nowGroup.text = item.group
         liveBadge.visibility = View.VISIBLE
@@ -454,6 +457,7 @@ class MainActivity : AppCompatActivity() {
         preview.player = null
         player?.release()
         player = null
+        smart = null
     }
 
     private fun toast(s: String) = Toast.makeText(this, s, Toast.LENGTH_SHORT).show()

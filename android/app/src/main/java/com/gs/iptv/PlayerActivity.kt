@@ -21,6 +21,7 @@ class PlayerActivity : AppCompatActivity() {
     private lateinit var view: PlayerView
     private lateinit var osd: TextView
     private var player: ExoPlayer? = null
+    private var smart: SmartPlay? = null
     private var index = 0
     private val queue get() = Store.playQueue
     private val hideOsd = Runnable { osd.visibility = View.GONE }
@@ -43,11 +44,7 @@ class PlayerActivity : AppCompatActivity() {
     override fun onStart() {
         super.onStart()
         val p = PlayerFactory.create(this)
-        p.addListener(object : Player.Listener {
-            override fun onPlayerError(error: PlaybackException) {
-                showOsd("Não foi possível reproduzir este conteúdo")
-            }
-        })
+        smart = SmartPlay(this, p) { showOsd("Não foi possível reproduzir este conteúdo") }
         view.player = p
         player = p
         play(index)
@@ -58,6 +55,7 @@ class PlayerActivity : AppCompatActivity() {
         view.player = null
         player?.release()
         player = null
+        smart = null
     }
 
     private fun play(i: Int) {
@@ -66,11 +64,7 @@ class PlayerActivity : AppCompatActivity() {
         val item = queue[index]
         val live = item.kind == Kind.LIVE
         view.useController = !live
-        player?.apply {
-            setMediaItem(MediaItem.fromUri(Store.playUrl(this@PlayerActivity, item)))
-            prepare()
-            playWhenReady = true
-        }
+        smart?.play(item)
         if (live) Store.setLastUrl(this, item.url)
         showOsd(if (item.number > 0) "${item.number}  ${item.name}" else item.name)
     }

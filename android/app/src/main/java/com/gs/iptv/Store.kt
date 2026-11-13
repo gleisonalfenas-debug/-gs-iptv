@@ -38,8 +38,12 @@ object Store {
     private val sectionCache = HashMap<String, Int>()
 
     /** Cria um item reaproveitando textos repetidos (economiza memória). */
+    private val prefixCanais = Regex("^\\s*canais?\\s*[:|/•·–-]*\\s*", RegexOption.IGNORE_CASE)
+
     fun make(name: String, url: String, logo: String, group: String, kind: Kind, number: Int): Item {
-        val g = groupPool.getOrPut(group) { group }
+        // Tira o "Canais" do começo do nome da categoria (ex.: "CANAIS | ESPORTES" -> "ESPORTES")
+        val shown = group.replace(prefixCanais, "").ifEmpty { group }
+        val g = groupPool.getOrPut(shown) { shown }
         val sec = sectionCache.getOrPut(g) {
             val n = norm(g)
             when {
@@ -60,6 +64,30 @@ object Store {
         val path = item.url.substring(XT.length) // ex.: live/123.ts
         val slash = path.indexOf('/')
         return "${l.server}/${path.substring(0, slash)}/${l.user}/${l.pass}${path.substring(slash)}"
+    }
+
+    /** Rotas para tocar um item, da mais provável para a alternativa. */
+    fun playRoutes(ctx: Context, item: Item): List<String> {
+        val main = playUrl(ctx, item)
+        val isLive = item.kind == Kind.LIVE && ("/live/" in main || item.url.startsWith("${XT}live/"))
+        if (!isLive) return listOf(main)
+        val ts = if (main.endsWith(".m3u8")) main.removeSuffix(".m3u8") + ".ts" else main
+        val hls = if (main.endsWith(".ts")) main.removeSuffix(".ts") + ".m3u8" else main
+        if (ts == hls) return listOf(main)
+        return if (prefs(ctx).getString("route", "ts") == "hls") listOf(hls, ts) else listOf(ts, hls)
+    }
+
+    fun rememberRoute(ctx: Context, url: String) {
+        val r = when { url.endsWith(".m3u8") -> "hls"; url.endsWith(".ts") -> "ts"; else -> return }
+        prefs(ctx).edit().putString("route", r).apply()
+    }
+
+    /** Mostra aviso quando o app acabou de ser atualizado. Retorna a versão nova ou null. */
+    fun justUpdated(ctx: Context): String? {
+        val p = prefs(ctx)
+        val seen = p.getInt("seen_version", -1)
+        p.edit().putInt("seen_version", BuildConfig.VERSION_CODE).apply()
+        return if (seen in 0 until BuildConfig.VERSION_CODE) BuildConfig.VERSION_NAME else null
     }
 
     /** Lista usada pelo player em tela cheia para trocar de canal (cima/baixo). */
