@@ -137,6 +137,7 @@ class MainActivity : AppCompatActivity() {
                 .show()
         }
         setupPanel()
+        applyBgLogo()
         Http.warm(Store.playlistUrl(this)) // já resolve o endereço do servidor
         if (!Store.hasList(this)) openSendList() else startup()
     }
@@ -252,6 +253,7 @@ class MainActivity : AppCompatActivity() {
             rows.forEach { (k, v) -> append("$k:  $v\n") }
             append("\nVersão do app:  ${BuildConfig.VERSION_NAME}\n")
             append("Relógio na tela:  ${if (Store.clockOn(this@MainActivity)) "Ligado" else "Desligado"}\n")
+            append("Logo no canal:  ${if (Store.cornerLogoOn(this@MainActivity)) "Ligado" else "Desligado"}\n")
             if (agenda.isNotEmpty()) {
                 append("\nAgendamentos:\n")
                 agenda.forEach { append("• ${it.title} — ${it.channelName} (${fmt.format(Date(it.openAt))})\n") }
@@ -261,13 +263,30 @@ class MainActivity : AppCompatActivity() {
             .setTitle("Minha conta")
             .setMessage(text)
             .setPositiveButton("Fechar", null)
-            .setNeutralButton(if (Store.clockOn(this)) "Desligar relógio" else "Mostrar relógio") { _, _ ->
-                Store.setClock(this, !Store.clockOn(this))
-                toast(if (Store.clockOn(this)) "Relógio fixo ligado nos canais" else "Relógio desligado")
-                showAccount(rows)
-            }
+            .setNeutralButton("Preferências") { _, _ -> openPreferences(rows) }
             .setNegativeButton("Trocar login") { _, _ -> openSendList() }
             .show()
+    }
+
+    /** Liga/desliga relógio fixo, logo no canto dos canais e logo animado do fundo. */
+    private fun openPreferences(rows: List<Pair<String, String>>) {
+        val labels = arrayOf("Relógio fixo na tela dos canais", "Logo GS no canto dos canais", "Logo animado no fundo do menu")
+        val checked = booleanArrayOf(Store.clockOn(this), Store.cornerLogoOn(this), Store.bgLogoOn(this))
+        AlertDialog.Builder(this)
+            .setTitle("Preferências")
+            .setMultiChoiceItems(labels, checked) { _, i, on ->
+                when (i) {
+                    0 -> Store.setClock(this, on)
+                    1 -> Store.setCornerLogo(this, on)
+                    2 -> { Store.setBgLogo(this, on); applyBgLogo() }
+                }
+            }
+            .setPositiveButton("OK") { _, _ -> showAccount(rows) }
+            .show()
+    }
+
+    private fun applyBgLogo() {
+        findViewById<View>(R.id.bgLogo).visibility = if (Store.bgLogoOn(this)) View.VISIBLE else View.GONE
     }
 
     private fun confirmExit() {

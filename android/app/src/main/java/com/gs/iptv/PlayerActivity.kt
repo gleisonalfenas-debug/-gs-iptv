@@ -101,7 +101,11 @@ class PlayerActivity : AppCompatActivity() {
             queue = Store.playQueue
         }
         index = savedInstanceState?.getInt("index") ?: intent.getIntExtra("index", 0)
-        findViewById<Logo3DView>(R.id.cornerLogo).compact = true
+        findViewById<Logo3DView>(R.id.cornerLogo).apply {
+            compact = true
+            visibility = if (Store.cornerLogoOn(this@PlayerActivity)) View.VISIBLE else View.GONE
+        }
+        setupTrackPanel()
         clock = findViewById(R.id.clock)
         clock.visibility = if (Store.clockOn(this)) View.VISIBLE else View.GONE
         if (queue.isEmpty()) { finish(); return }
@@ -127,7 +131,11 @@ class PlayerActivity : AppCompatActivity() {
 
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
-                if (overlay.visibility == View.VISIBLE) hideOverlay() else finish()
+                when {
+                    trackPanel.visibility == View.VISIBLE -> hideTrackPanel()
+                    overlay.visibility == View.VISIBLE -> hideOverlay()
+                    else -> finish()
+                }
             }
         })
     }
@@ -148,6 +156,15 @@ class PlayerActivity : AppCompatActivity() {
             showOsd()
         }
         p.addListener(object : Player.Listener {
+            override fun onTracksChanged(tracks: Tracks) {
+                if (isLive) return
+                val a = tracksOf(C.TRACK_TYPE_AUDIO).size
+                val t = tracksOf(C.TRACK_TYPE_TEXT).size
+                val v = tracksOf(C.TRACK_TYPE_VIDEO).size
+                Diag.log("Faixas de \"${queue.getOrNull(index)?.name}\": áudio $a · legenda $t · vídeo $v")
+                if (trackPanel.visibility == View.VISIBLE) refreshTrackRows()
+            }
+
             override fun onPlaybackStateChanged(state: Int) {
                 val item = queue.getOrNull(index) ?: return
                 if (state == Player.STATE_READY && openStartedAt > 0) {
@@ -369,11 +386,125 @@ class PlayerActivity : AppCompatActivity() {
             .show()
     }
 
+    // ---------- Painel na tela: idioma, legenda e resolução ----------
+    private lateinit var trackPanel: View
+    private lateinit var rowAudio: TextView
+    private lateinit var rowText: TextView
+    private lateinit var rowVideo: TextView
+    private val hideTrackTask = Runnable { hideTrackPanel() }
+
+    private fun setupTrackPanel() {
+        trackPanel = findViewById(R.id.trackPanel)
+        rowAudio = findViewById(R.id.rowAudio)
+        rowText = findViewById(R.id.rowText)
+        rowVideo = findViewById(R.id.rowVideo)
+        listOf(rowAudio to C.TRACK_TYPE_AUDIO, rowText to C.TRACK_TYPE_TEXT, rowVideo to C.TRACK_TYPE_VIDEO).forEach { (row, type) ->
+            row.setOnKeyListener { _, code, ev ->
+                if (ev.action != KeyEvent.ACTION_DOWN) return@setOnKeyListener false
+                bumpTrackTimer()
+                when (code) {
+                    KeyEvent.KEYCODE_DPAD_LEFT -> { cycle(type, -1); true }
+                    KeyEvent.KEYCODE_DPAD_RIGHT, KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER -> { cycle(type, 1); true }
+                    KeyEvent.KEYCODE_DPAD_UP -> row == rowAudio     // não sai do painel por cima
+                    KeyEvent.KEYCODE_DPAD_DOWN -> row == rowVideo   // nem por baixo
+                    else -> false
+                }
+            }
+        }
+    }
+
+    private fun openTrackPanel() {
+        view.hideController()
+        refreshTrackRows()
+        trackPanel.visibility = View.VISIBLE
+        rowAudio.requestFocus()
+        bumpTrackTimer()
+    }
+
+    private fun hideTrackPanel() {
+        trackPanel.visibility = View.GONE
+        ui.removeCallbacks(hideTrackTask)
+    }
+
+    private fun bumpTrackTimer() {
+        ui.removeCallbacks(hideTrackTask)
+        ui.postDelayed(hideTrackTask, 15_000)
+    }
+
+    /** Opções de cada tipo: null = Automática (vídeo) ou Desligada (legenda). */
+    private fun choices(type: Int): List<Track?> {
+        val list = tracksOf(type)
+        return when (type) {
+            C.TRACK_TYPE_AUDIO -> list
+            else -> listOf<Track?>(null) + list
+        }
+    }
+
+    private fun currentChoice(type: Int): Int {
+        val p = player ?: return 0
+        val list = choices(type)
+        return when (type) {
+            C.TRACK_TYPE_TEXT -> if (p.trackSelectionParameters.disabledTrackTypes.contains(C.TRACK_TYPE_TEXT)) 0
+                else list.indexOfFirst { it?.selected == true }.coerceAtLeast(0)
+            C.TRACK_TYPE_VIDEO -> if (p.trackSelectionParameters.overrides.keys.none { it.type == C.TRACK_TYPE_VIDEO }) 0
+                else list.indexOfFirst { it?.selected == true }.coerceAtLeast(0)
+            else -> list.indexOfFirst { it?.selected == true }.coerceAtLeast(0)
+        }
+    }
+
+    private fun refreshTrackRows() {
+        fun text(type: Int, title: String, empty: String): String {
+            val list = choices(type)
+            val real = list.count { it != null }
+            if (real == 0) return "$title:   $empty"
+            val cur = list.getOrNull(currentChoice(type))
+            val label = cur?.label ?: if (type == C.TRACK_TYPE_VIDEO) "Automática" else "Desligada"
+            val more = if (list.size > 1) "◀  $label  ▶" else "$label (única opção)"
+            return "$title:   $more"
+        }
+        rowAudio.text = text(C.TRACK_TYPE_AUDIO, "Idioma do áudio", "este filme tem um só idioma")
+        rowText.text = text(C.TRACK_TYPE_TEXT, "Legenda", "este filme não tem legenda")
+        rowVideo.text = text(C.TRACK_TYPE_VIDEO, "Resolução", "única resolução")
+    }
+
+    private fun cycle(type: Int, dir: Int) {
+        val p = player ?: return
+        val list = choices(type)
+        if (list.size <= 1) return
+        val next = ((currentChoice(type) + dir) % list.size + list.size) % list.size
+        val choice = list[next]
+        val b = p.trackSelectionParameters.buildUpon()
+        if (choice == null) {
+            if (type == C.TRACK_TYPE_TEXT) b.setTrackTypeDisabled(C.TRACK_TYPE_TEXT, true)
+            else b.clearOverridesOfType(type)
+        } else {
+            val f = choice.group.getTrackFormat(choice.index)
+            b.setTrackTypeDisabled(type, false)
+                .clearOverridesOfType(type)
+                .setOverrideForType(TrackSelectionOverride(choice.group.mediaTrackGroup, choice.index))
+            if (type == C.TRACK_TYPE_AUDIO && f.language != null) b.setPreferredAudioLanguage(f.language)
+            if (type == C.TRACK_TYPE_TEXT) {
+                b.setSelectUndeterminedTextLanguage(true)
+                if (f.language != null) b.setPreferredTextLanguage(f.language)
+            }
+        }
+        p.trackSelectionParameters = b.build()
+        Diag.log("Trocou ${when (type) { C.TRACK_TYPE_AUDIO -> "áudio"; C.TRACK_TYPE_TEXT -> "legenda"; else -> "resolução" }} para ${choice?.label ?: "padrão"}")
+        refreshTrackRows()
+        // a troca acontece em instantes; atualiza o texto de novo depois
+        ui.postDelayed({ if (trackPanel.visibility == View.VISIBLE) refreshTrackRows() }, 800)
+    }
+
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        // Filmes e séries: seta para baixo abre o painel de idioma, legenda e resolução
+        if (event.action == KeyEvent.ACTION_DOWN && !isLive && trackPanel.visibility != View.VISIBLE &&
+            event.keyCode == KeyEvent.KEYCODE_DPAD_DOWN) { openTrackPanel(); return true }
+        if (trackPanel.visibility == View.VISIBLE) return super.dispatchKeyEvent(event)
         // Filmes e séries: OK (com os controles escondidos) ou MENU abre resolução, idioma e legenda
         if (event.action == KeyEvent.ACTION_DOWN && !isLive) {
             val ok = event.keyCode == KeyEvent.KEYCODE_DPAD_CENTER || event.keyCode == KeyEvent.KEYCODE_ENTER || event.keyCode == KeyEvent.KEYCODE_NUMPAD_ENTER
-            if (event.keyCode == KeyEvent.KEYCODE_MENU || (ok && !view.isControllerFullyVisible)) { openOptions(); return true }
+            if (event.keyCode == KeyEvent.KEYCODE_MENU) { openTrackPanel(); return true }
+            if (ok && !view.isControllerFullyVisible) { openOptions(); return true }
         }
         if (event.action == KeyEvent.ACTION_DOWN && isLive && event.keyCode == KeyEvent.KEYCODE_MENU) { openOptions(); return true }
         if (event.action == KeyEvent.ACTION_DOWN && isLive) {

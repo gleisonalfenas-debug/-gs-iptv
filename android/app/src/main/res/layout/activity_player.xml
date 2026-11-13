@@ -72,6 +72,69 @@
             android:textSize="17sp" />
     </LinearLayout>
 
+    <!-- Filmes/séries: idioma, legenda e resolução (seta para baixo) -->
+    <LinearLayout
+        android:id="@+id/trackPanel"
+        android:layout_width="620dp"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom|center_horizontal"
+        android:layout_marginBottom="40dp"
+        android:background="@drawable/bg_dark_box"
+        android:orientation="vertical"
+        android:padding="20dp"
+        android:visibility="gone">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Opções do filme"
+            android:textColor="@color/gold"
+            android:textSize="20sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/rowAudio"
+            android:layout_width="match_parent"
+            android:layout_height="56dp"
+            android:layout_marginTop="6dp"
+            android:background="@drawable/bg_item"
+            android:focusable="true"
+            android:gravity="center_vertical"
+            android:paddingHorizontal="20dp"
+            android:textSize="20sp" />
+
+        <TextView
+            android:id="@+id/rowText"
+            android:layout_width="match_parent"
+            android:layout_height="56dp"
+            android:layout_marginTop="6dp"
+            android:background="@drawable/bg_item"
+            android:focusable="true"
+            android:gravity="center_vertical"
+            android:paddingHorizontal="20dp"
+            android:textSize="20sp" />
+
+        <TextView
+            android:id="@+id/rowVideo"
+            android:layout_width="match_parent"
+            android:layout_height="56dp"
+            android:layout_marginTop="6dp"
+            android:background="@drawable/bg_item"
+            android:focusable="true"
+            android:gravity="center_vertical"
+            android:paddingHorizontal="20dp"
+            android:textSize="20sp" />
+
+        <TextView
+            android:id="@+id/trackHint"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            android:text="▲▼ escolhe a opção  ·  ◀ ▶ troca  ·  Voltar fecha"
+            android:textColor="@color/pink_text"
+            android:textSize="14sp" />
+    </LinearLayout>
+
     <!-- Lista de canais (OK) e categorias (seta esquerda) -->
     <LinearLayout
         android:id="@+id/overlay"

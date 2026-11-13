@@ -89,6 +89,10 @@ object Store {
     var showClock: Boolean = false
     fun clockOn(ctx: Context) = prefs(ctx).getBoolean("show_clock", false)
     fun setClock(ctx: Context, on: Boolean) = prefs(ctx).edit().putBoolean("show_clock", on).apply()
+    fun cornerLogoOn(ctx: Context) = prefs(ctx).getBoolean("show_logo", true)
+    fun setCornerLogo(ctx: Context, on: Boolean) = prefs(ctx).edit().putBoolean("show_logo", on).apply()
+    fun bgLogoOn(ctx: Context) = prefs(ctx).getBoolean("show_bg_logo", true)
+    fun setBgLogo(ctx: Context, on: Boolean) = prefs(ctx).edit().putBoolean("show_bg_logo", on).apply()
 
     /** Mostra aviso quando o app acabou de ser atualizado. Retorna a versão nova ou null. */
     fun justUpdated(ctx: Context): String? {
