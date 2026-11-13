@@ -209,6 +209,9 @@ class MainActivity : AppCompatActivity() {
         findViewById<RecyclerView>(R.id.vodCategories).apply {
             layoutManager = LinearLayoutManager(this@MainActivity); adapter = vodCatAdapter
         }
+        channelsList.setHasFixedSize(true)
+        gridList.setHasFixedSize(true)
+        gridList.setItemViewCacheSize(10)
         channelsList.layoutManager = LinearLayoutManager(this)
         channelsList.adapter = channelAdapter
         gridList.layoutManager = GridLayoutManager(this, 5)
@@ -435,8 +438,8 @@ class MainActivity : AppCompatActivity() {
     // ---------------- Player ----------------
     private fun ensurePlayer(): SmartPlay {
         smart?.let { return it }
-        val p = PlayerFactory.create(this)
-        val sp = SmartPlay(this, p) { nowGroup.text = "Canal indisponível no momento" }
+        val p = PlayerFactory.create(this, preview = true)
+        val sp = SmartPlay(this, p, preview = true) { nowGroup.text = "Canal indisponível no momento" }
         preview.player = p
         player = p
         smart = sp

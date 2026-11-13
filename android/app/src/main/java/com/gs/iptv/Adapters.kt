@@ -72,7 +72,7 @@ class ChannelAdapter(
         h.sub.text = it.group
         h.fav.visibility = if (favorites.contains(it.url)) View.VISIBLE else View.GONE
         h.itemView.isActivated = it.url == playingUrl
-        if (it.logo.isNotEmpty()) h.logo.load(it.logo) { crossfade(true) } else h.logo.setImageDrawable(null)
+        if (it.logo.isNotEmpty()) h.logo.load(it.logo) { size(160, 100) } else h.logo.setImageDrawable(null)
         h.itemView.setOnClickListener { _ ->
             val p = h.bindingAdapterPosition
             if (p != RecyclerView.NO_POSITION) onClick(items[p], p)
@@ -105,7 +105,7 @@ class PosterAdapter(
     override fun onBindViewHolder(h: VH, pos: Int) {
         val it = items[pos]
         h.title.text = it.name
-        if (it.logo.isNotEmpty()) h.poster.load(it.logo) { crossfade(true) } else h.poster.setImageDrawable(null)
+        if (it.logo.isNotEmpty()) h.poster.load(it.logo) { size(300, 450) } else h.poster.setImageDrawable(null)
         h.itemView.setOnClickListener { _ ->
             val p = h.bindingAdapterPosition
             if (p != RecyclerView.NO_POSITION) onClick(items[p], p)

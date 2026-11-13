@@ -6,7 +6,16 @@ import java.io.PrintWriter
 import java.io.StringWriter
 
 /** Guarda o motivo se o app fechar sozinho, para mostrar na próxima vez que abrir. */
-class GsApp : Application() {
+class GsApp : Application(), coil.ImageLoaderFactory {
+    /** Imagens (logos e capas) com cache de memória pequeno, para não pesar a TV. */
+    override fun newImageLoader(): coil.ImageLoader = coil.ImageLoader.Builder(this)
+        .memoryCache { coil.memory.MemoryCache.Builder(this).maxSizePercent(0.10).build() }
+        .diskCache { coil.disk.DiskCache.Builder().directory(cacheDir.resolve("imagens")).maxSizeBytes(150L * 1024 * 1024).build() }
+        .allowRgb565(true)
+        .crossfade(false)
+        .respectCacheHeaders(false)
+        .build()
+
     override fun onCreate() {
         super.onCreate()
         val previous = Thread.getDefaultUncaughtExceptionHandler()
