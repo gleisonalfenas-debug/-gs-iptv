@@ -322,6 +322,11 @@ object Store {
         map.putIfAbsent(Tab.GAMES, TabData(emptyList(), emptyList()))
         tabs = map
         items = live + movies + series
+        releaseCache = mapOf(
+            Tab.MOVIES to releases(map[Tab.MOVIES]?.items ?: emptyList(), 30),
+            Tab.SERIES to releases(map[Tab.SERIES]?.items ?: emptyList(), 30),
+            Tab.KIDS to releases(map[Tab.KIDS]?.items ?: emptyList(), 30),
+        )
     }
 
     private val qualityWords = Regex("\\b(fhd|uhd|hd|sd|4k|8k|h265|h\\.265|hevc|alt|alternativo|backup|op\\d*|opcao|opção|\\d{3,4}p)\\b", RegexOption.IGNORE_CASE)
@@ -350,11 +355,21 @@ object Store {
 
     private val releaseKeys = listOf("lanc", "destaq", "novidad", "recente", "cinema", "estreia", "2026", "2025", "top", "novo")
 
-    /** Lançamentos de uma lista: categorias com nomes de lançamento; se não houver, os primeiros itens. */
+    private val releaseGroup = java.util.concurrent.ConcurrentHashMap<String, Boolean>()
+
+    /** Lançamentos: categorias com nome de lançamento (verifica cada categoria uma vez só). */
     fun releases(items: List<Item>, max: Int = 40): List<Item> {
-        val picked = items.filter { m -> norm(m.group).let { g -> releaseKeys.any { it in g } } }
-        return (if (picked.isNotEmpty()) picked else items).take(max)
+        val out = ArrayList<Item>(max)
+        for (m in items) {
+            val isNew = releaseGroup.getOrPut(m.group) { norm(m.group).let { g -> releaseKeys.any { it in g } } }
+            if (isNew) { out.add(m); if (out.size >= max) break }
+        }
+        return if (out.isNotEmpty()) out else items.take(max)
     }
+
+    /** Lançamentos já prontos por aba (calculados ao carregar, fora da tela principal). */
+    @Volatile private var releaseCache: Map<Tab, List<Item>> = emptyMap()
+    fun releasesOf(t: Tab): List<Item> = releaseCache[t] ?: emptyList()
 
     /** Destaques: filmes lançamentos. */
     private fun highlights(list: List<Item>): TabData {

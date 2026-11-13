@@ -106,6 +106,7 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
+        window.setBackgroundDrawable(null) // a tela já tem fundo próprio: evita pintar duas vezes
         lite = Store.liteOn(this)
 
         title = findViewById(R.id.title)
@@ -320,9 +321,9 @@ class MainActivity : AppCompatActivity() {
             showPanel(Kind.LIVE); return
         }
         // lançamentos de filmes, séries e kids
-        val newMovies = Store.releases(Store.tab(Tab.MOVIES).items, 30)
-        val newSeries = Store.releases(Store.tab(Tab.SERIES).items, 30)
-        val newKids = Store.releases(Store.tab(Tab.KIDS).items, 30)
+        val newMovies = Store.releasesOf(Tab.MOVIES)
+        val newSeries = Store.releasesOf(Tab.SERIES)
+        val newKids = Store.releasesOf(Tab.KIDS)
         // destaque: passa sozinho pelos lançamentos (a cada 8 s)
         heroList = (newMovies.take(5) + newSeries.take(4) + newKids.take(3)).ifEmpty {
             listOfNotNull(live.firstOrNull { it.url == Store.lastUrl(this) } ?: live.firstOrNull())
@@ -375,6 +376,13 @@ class MainActivity : AppCompatActivity() {
             })
         tvCats.layoutManager = LinearLayoutManager(this); tvCats.adapter = catAdapter; tvCats.itemAnimator = null
         tvList.layoutManager = LinearLayoutManager(this); tvList.adapter = liveAdapter; tvList.itemAnimator = null
+        tvList.setHasFixedSize(true); tvList.setItemViewCacheSize(12); tvCats.setHasFixedSize(true)
+        // programação: só busca os canais visíveis quando a lista para de rolar
+        tvList.addOnScrollListener(object : androidx.recyclerview.widget.RecyclerView.OnScrollListener() {
+            override fun onScrollStateChanged(rv: androidx.recyclerview.widget.RecyclerView, state: Int) {
+                if (state == androidx.recyclerview.widget.RecyclerView.SCROLL_STATE_IDLE) prefetchEpg()
+            }
+        })
         tvCats.onLeft = toRail; tvCats.onUp = {}; tvCats.onRight = { tvList.focusPosition(0) }
         tvList.onLeft = { tvCats.focusPosition(catAdapter.selected) }; tvList.onUp = {}
         // seta direita no canal: programação do dia
@@ -399,7 +407,21 @@ class MainActivity : AppCompatActivity() {
         liveAdapter.favorites = Store.favorites(this)
         liveAdapter.items = cat.second
         tvList.scrollToPosition(0)
+        ui.removeCallbacks(epgPrefetch); ui.postDelayed(epgPrefetch, 500)
         cat.second.firstOrNull()?.let { showInfo(it) }
+    }
+
+    private val epgPrefetch = Runnable { prefetchEpg() }
+
+    /** Busca a programação só dos canais que estão na tela (no máximo 12). */
+    private fun prefetchEpg() {
+        val lm = tvList.layoutManager as? LinearLayoutManager ?: return
+        val first = lm.findFirstVisibleItemPosition(); val last = lm.findLastVisibleItemPosition()
+        if (first < 0) return
+        for (i in first..minOf(last, first + 11)) {
+            val ch = liveAdapter.items.getOrNull(i) ?: continue
+            if (Epg.cached(ch) == null) Epg.request(this, ch) { _ -> if (liveAdapter.items.getOrNull(i)?.url == ch.url) liveAdapter.notifyItemChanged(i) }
+        }
     }
 
     private fun showInfo(item: Item) {
@@ -436,6 +458,7 @@ class MainActivity : AppCompatActivity() {
         chips.onDown = { vodGrid.focusPosition(0) }
         vodGrid.layoutManager = GridLayoutManager(this, 5)
         vodGrid.adapter = gridAdapter; vodGrid.itemAnimator = null
+        vodGrid.setHasFixedSize(true); vodGrid.setItemViewCacheSize(15)
         vodGrid.onLeft = toRail
         vodGrid.onUp = { chips.findViewHolderForAdapterPosition(chipAdapter.selected)?.itemView?.requestFocus() ?: chips.requestFocus() }
         vodGrid.onRight = {}
@@ -959,6 +982,7 @@ class MainActivity : AppCompatActivity() {
         ui.removeCallbacks(clockTick)
         ui.removeCallbacks(scheduleCheck)
         ui.removeCallbacks(heroTick)
+        ui.removeCallbacks(epgPrefetch)
     }
 
     private fun toast(s: String) = Toast.makeText(this, s, Toast.LENGTH_SHORT).show()

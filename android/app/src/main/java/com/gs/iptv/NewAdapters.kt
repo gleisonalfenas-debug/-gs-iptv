@@ -72,11 +72,6 @@ class LiveRowAdapter(
         if (showLogos && it.logo.isNotEmpty()) { h.logo.visibility = View.VISIBLE; h.logo.load(it.logo) { size(120, 120) } }
         else { h.logo.visibility = View.GONE; h.logo.setImageDrawable(null) }
         bindEpg(h, Epg.cached(it), it)
-        if (Epg.cached(it) == null) Epg.request(ctx, it) { _ ->
-            val r = rv ?: return@request
-            val p = items.indexOfFirst { x -> x.url == it.url }
-            if (p >= 0) r.post { notifyItemChanged(p) }
-        }
         h.itemView.setOnFocusChangeListener { _, has -> if (has) { val p = h.bindingAdapterPosition; if (p != RecyclerView.NO_POSITION) onFocus(items[p]) } }
         h.itemView.setOnClickListener { _ -> val p = h.bindingAdapterPosition; if (p != RecyclerView.NO_POSITION) onClick(p) }
         h.itemView.setOnLongClickListener { _ -> val p = h.bindingAdapterPosition; if (p != RecyclerView.NO_POSITION) onLong(items[p]); true }
@@ -154,7 +149,7 @@ class GridAdapter(
             h.frame.foreground?.state = if (has) intArrayOf(android.R.attr.state_focused) else intArrayOf()
             v.animate().scaleX(if (has) 1.05f else 1f).scaleY(if (has) 1.05f else 1f).setDuration(110).start()
             // capa animada: câmera lenta + brilho
-            if (has && h.poster.visibility == View.VISIBLE) { Motion.kenBurns(h.poster); Motion.shine(h.frame as FrameLayout) }
+            if (has && h.poster.visibility == View.VISIBLE && h.poster.drawable != null) { Motion.kenBurns(h.poster); Motion.shine(h.frame as FrameLayout) }
             else Motion.stopKenBurns(h.poster)
         }
         h.itemView.setOnClickListener { _ -> val p = h.bindingAdapterPosition; if (p != RecyclerView.NO_POSITION) onClick(p) }
