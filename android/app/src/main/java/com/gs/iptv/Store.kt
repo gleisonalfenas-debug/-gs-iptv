@@ -277,10 +277,10 @@ object Store {
         val map = HashMap<Tab, TabData>()
         for (t in Tab.values()) {
             if (t == Tab.HIGHLIGHTS) { map[t] = highlights(list); continue }
-            if (t == Tab.GAMES) { map[t] = TabData(emptyList(), emptyList()); continue }
+            if (t == Tab.GAMES || t == Tab.HOME) { map[t] = TabData(emptyList(), emptyList()); continue }
             val tabItems = list.filter { i ->
                 when (t) {
-                    Tab.HIGHLIGHTS, Tab.GAMES -> false
+                    Tab.HIGHLIGHTS, Tab.GAMES, Tab.HOME -> false
                     Tab.TV -> i.kind == Kind.LIVE
                     Tab.MOVIES -> i.kind == Kind.MOVIE && i.section == 0
                     Tab.SERIES -> i.kind == Kind.SERIES && i.section == 0
@@ -460,4 +460,4 @@ object Store {
     private fun withScheme(s: String) = if (s.startsWith("http://") || s.startsWith("https://")) s else "http://$s"
 }
 
-enum class Tab(val label: String) { TV("TV"), GAMES("JOGOS"), HIGHLIGHTS("DESTAQUES"), MOVIES("FILMES"), SERIES("SÉRIES"), KIDS("KIDS"), ANIME("ANIME") }
+enum class Tab(val label: String) { HOME("INÍCIO"), TV("TV"), GAMES("JOGOS"), HIGHLIGHTS("DESTAQUES"), MOVIES("FILMES"), SERIES("SÉRIES"), KIDS("KIDS"), ANIME("ANIME") }

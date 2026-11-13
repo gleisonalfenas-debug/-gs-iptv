@@ -13,6 +13,7 @@ import android.view.Gravity
 import android.view.View
 import android.view.inputmethod.EditorInfo
 import android.widget.EditText
+import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
@@ -26,6 +27,7 @@ import androidx.media3.common.Player
 import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import coil.load
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -35,7 +37,7 @@ import java.util.Locale
 
 class MainActivity : AppCompatActivity() {
 
-    private var tab = Tab.TV
+    private var tab = Tab.HOME
     private val tabViews = ArrayList<TextView>()
 
     private lateinit var liveView: View
@@ -52,6 +54,9 @@ class MainActivity : AppCompatActivity() {
     private var lite = true
     private lateinit var spiral: SpiralView
     private lateinit var gamesView: View
+    private lateinit var homeView: View
+    private lateinit var homeRows: RecyclerView
+    private lateinit var homeAdapter: HomeAdapter
     private lateinit var gamesList: TvList
     private lateinit var gameAdapter: GameAdapter
     private lateinit var highlightView: View
@@ -106,6 +111,22 @@ class MainActivity : AppCompatActivity() {
         vodSimple.setHasFixedSize(true)
         spiral = findViewById(R.id.spiral)
         gamesView = findViewById(R.id.gamesView)
+        homeView = findViewById(R.id.homeView)
+        homeRows = findViewById(R.id.homeRows)
+        homeAdapter = HomeAdapter(
+            lite = { lite },
+            onFocus = { item -> showHero(item) },
+            onClick = { row, i ->
+                val item = row.items[i]
+                when {
+                    item.url.startsWith(Xtream.SERIES_PREFIX) -> openSeries(item)
+                    else -> { if (item.kind == Kind.LIVE) current = item; openFullscreen(row.items, i) }
+                }
+            },
+        )
+        homeRows.layoutManager = LinearLayoutManager(this)
+        homeRows.adapter = homeAdapter
+        homeRows.itemAnimator = null
         gamesList = findViewById(R.id.gamesList)
         gameAdapter = GameAdapter { g -> onGameClick(g) }
         gamesList.layoutManager = LinearLayoutManager(this)
@@ -155,6 +176,57 @@ class MainActivity : AppCompatActivity() {
         applyLite()
         Http.warm(Store.playlistUrl(this)) // já resolve o endereço do servidor
         if (!Store.hasList(this)) openSendList() else startup()
+    }
+
+    // ---------------- Início em fileiras ----------------
+    private fun buildHomeRows(): List<HomeRow> {
+        val rows = ArrayList<HomeRow>()
+        val live = Store.tab(Tab.TV).items
+        val favs = Store.favorites(this)
+        val last = Store.lastUrl(this)
+        if (live.isNotEmpty()) {
+            val recent = live.filter { it.url == last }
+            val favList = live.filter { favs.contains(it.url) }
+            if (recent.isNotEmpty() || favList.isNotEmpty())
+                rows.add(HomeRow("Continuar assistindo e favoritos", (recent + favList).distinctBy { it.url }.take(30), false))
+            rows.add(HomeRow("Canais ao vivo", live.take(30), false))
+            Games.sportsChannels().take(30).takeIf { it.isNotEmpty() && it.size < live.size }?.let { rows.add(HomeRow("Esportes", it, false)) }
+        }
+        Store.tab(Tab.HIGHLIGHTS).items.take(30).takeIf { it.isNotEmpty() }?.let { rows.add(HomeRow("Lançamentos", it, true)) }
+        Store.tab(Tab.SERIES).items.take(30).takeIf { it.isNotEmpty() }?.let { rows.add(HomeRow("Séries", it, true)) }
+        Store.tab(Tab.KIDS).items.take(30).takeIf { it.isNotEmpty() }?.let { rows.add(HomeRow("Kids", it, true)) }
+        return rows
+    }
+
+    private fun showHome() {
+        val rows = buildHomeRows()
+        if (rows.isEmpty()) {
+            homeView.visibility = View.GONE
+            showPanel(Kind.LIVE)
+            return
+        }
+        sectionPanel.visibility = View.GONE
+        empty.visibility = View.GONE
+        homeView.visibility = View.VISIBLE
+        findViewById<View>(R.id.heroImage).visibility = if (lite) View.GONE else View.VISIBLE
+        homeAdapter.rows = rows
+        rows.firstOrNull()?.items?.firstOrNull()?.let { showHero(it) }
+    }
+
+    private fun showHero(item: Item) {
+        findViewById<TextView>(R.id.heroKind).text = when (item.kind) { Kind.LIVE -> "AO VIVO"; Kind.MOVIE -> "FILME"; Kind.SERIES -> "SÉRIE" }
+        findViewById<TextView>(R.id.heroTitle).text = item.name
+        findViewById<TextView>(R.id.heroMeta).text = item.group
+        val img = findViewById<ImageView>(R.id.heroImage)
+        if (!lite && item.logo.isNotEmpty()) img.load(item.logo) { size(600, 400) } else img.setImageDrawable(null)
+    }
+
+    private fun focusFirstTile() {
+        homeRows.scrollToPosition(0)
+        homeRows.post {
+            val row = homeRows.findViewHolderForAdapterPosition(0) as? HomeAdapter.VH ?: return@post
+            row.list.post { row.list.findViewHolderForAdapterPosition(0)?.itemView?.requestFocus() }
+        }
     }
 
     // ---------------- Jogos do dia ----------------
@@ -470,6 +542,7 @@ class MainActivity : AppCompatActivity() {
             tab == Tab.TV -> liveCatList.focusPosition(liveCatAdapter.selected)
             tab == Tab.HIGHLIGHTS && !lite -> spiral.requestFocus()
             tab == Tab.GAMES -> gamesList.focusPosition(0)
+            tab == Tab.HOME -> focusFirstTile()
             else -> vodCatList.focusPosition(vodCatAdapter.selected)
         }
     }
@@ -486,6 +559,7 @@ class MainActivity : AppCompatActivity() {
             vodView.visibility = View.GONE
             highlightView.visibility = View.GONE
             gamesView.visibility = View.GONE
+            homeView.visibility = View.GONE
             empty.visibility = View.GONE
             showPanel(missing.first())
             return
@@ -498,7 +572,12 @@ class MainActivity : AppCompatActivity() {
 
         highlightView.visibility = View.GONE
         gamesView.visibility = View.GONE
-        if (t == Tab.GAMES) {
+        homeView.visibility = View.GONE
+        if (t == Tab.HOME) {
+            liveView.visibility = View.GONE
+            vodView.visibility = View.GONE
+            showHome()
+        } else if (t == Tab.GAMES) {
             liveView.visibility = View.GONE
             vodView.visibility = View.GONE
             empty.visibility = View.GONE
@@ -554,6 +633,7 @@ class MainActivity : AppCompatActivity() {
         Tab.KIDS, Tab.ANIME -> listOf(Kind.MOVIE, Kind.SERIES)
         Tab.HIGHLIGHTS -> listOf(Kind.MOVIE)
         Tab.GAMES -> emptyList()
+        Tab.HOME -> emptyList()
     }
 
     private fun setupPanel() {
