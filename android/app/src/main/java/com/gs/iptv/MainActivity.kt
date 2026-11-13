@@ -101,14 +101,14 @@ class MainActivity : AppCompatActivity() {
         findViewById<View>(R.id.btnSearch).setOnClickListener { openSearch() }
         findViewById<View>(R.id.btnSend).setOnClickListener { openSendList() }
         findViewById<View>(R.id.btnRefresh).setOnClickListener { refreshAll() }
+        findViewById<View>(R.id.btnSettings).setOnClickListener { openSettings() }
 
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
                 if (tabViews.none { it.hasFocus() }) {
                     tabViews[tab.ordinal].requestFocus()
                 } else {
-                    isEnabled = false
-                    onBackPressedDispatcher.onBackPressed()
+                    confirmExit()
                 }
             }
         })
@@ -131,6 +131,32 @@ class MainActivity : AppCompatActivity() {
         }
         setupPanel()
         if (!Store.hasList(this)) openSendList() else startup()
+    }
+
+    private fun confirmExit() {
+        AlertDialog.Builder(this)
+            .setTitle("Sair do GS IPTV?")
+            .setMessage("Deseja realmente sair do app?")
+            .setPositiveButton("Sair") { _, _ -> finish() }
+            .setNegativeButton("Continuar", null)
+            .show()
+            .getButton(AlertDialog.BUTTON_NEGATIVE)?.requestFocus()
+    }
+
+    private fun openSettings() {
+        val opts = Buffer.values()
+        val cur = Buffer.current(this).ordinal
+        AlertDialog.Builder(this)
+            .setTitle("Buffer (reserva de vídeo)")
+            .setSingleChoiceItems(opts.map { "${it.label}\n${it.desc}" }.toTypedArray(), cur) { d, i ->
+                Buffer.set(this, opts[i])
+                Diag.log("Buffer alterado para ${opts[i].label}")
+                toast("Buffer: ${opts[i].label}")
+                current?.let { playPreview(it) } // aplica no canal atual
+                d.dismiss()
+            }
+            .setNegativeButton("Fechar", null)
+            .show()
     }
 
     // ---------------- Abas ----------------

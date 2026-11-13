@@ -21,10 +21,13 @@ object PlayerFactory {
             .setAllowCrossProtocolRedirects(true)
             .setConnectTimeoutMs(8_000)
             .setReadTimeoutMs(15_000)
+        val b = Buffer.current(ctx)
         val load = DefaultLoadControl.Builder()
-            // mín. 15s / máx. 50s de reserva; começa a tocar com 1s; volta após travada com 2s
-            .setBufferDurationsMs(15_000, 50_000, 1_000, 2_000)
-            .setPrioritizeTimeOverSizeThresholds(true)
+            // reserva mínima / máxima; quanto precisa para começar; quanto espera depois de uma travada
+            .setBufferDurationsMs(b.minMs, b.maxMs, b.startMs, b.afterStallMs)
+            .setTargetBufferBytes(b.maxBytes)          // limite de memória da reserva
+            .setPrioritizeTimeOverSizeThresholds(false)
+            .setBackBuffer(b.backMs, true)
             .build()
         val renderers = DefaultRenderersFactory(ctx)
             .setEnableDecoderFallback(true) // se o decodificador da TV falhar, tenta outro
@@ -74,8 +77,34 @@ class SmartPlay(
     }
 
     private fun start() {
-        player.setMediaItem(MediaItem.fromUri(routes[index]))
+        val b = Buffer.current(ctx)
+        val media = MediaItem.Builder()
+            .setUri(routes[index])
+            // Ao vivo: assiste um pouco atrás do "ao vivo" para ter folga e não travar
+            .setLiveConfiguration(MediaItem.LiveConfiguration.Builder().setTargetOffsetMs(b.liveOffsetMs).build())
+            .build()
+        player.setMediaItem(media)
         player.prepare()
         player.playWhenReady = true
+    }
+}
+
+/** Níveis de buffer (reserva de vídeo) para segurar travadas do servidor ou da internet. */
+enum class Buffer(
+    val label: String, val desc: String,
+    val minMs: Int, val maxMs: Int, val startMs: Int, val afterStallMs: Int,
+    val maxBytes: Int, val backMs: Int, val liveOffsetMs: Long,
+) {
+    NORMAL("Normal", "Abre mais rápido, menos reserva", 15_000, 50_000, 1_000, 2_500, 32 * 1024 * 1024, 0, 8_000),
+    LARGE("Grande (recomendado)", "Equilíbrio entre rapidez e estabilidade", 30_000, 120_000, 1_500, 5_000, 64 * 1024 * 1024, 10_000, 15_000),
+    MAX("Máximo", "Mais estável, leva uns segundos a mais para abrir", 60_000, 240_000, 2_500, 8_000, 110 * 1024 * 1024, 15_000, 30_000);
+
+    companion object {
+        fun current(ctx: Context): Buffer {
+            val name = ctx.getSharedPreferences("gs", Context.MODE_PRIVATE).getString("buffer", LARGE.name)
+            return values().firstOrNull { it.name == name } ?: LARGE
+        }
+        fun set(ctx: Context, b: Buffer) =
+            ctx.getSharedPreferences("gs", Context.MODE_PRIVATE).edit().putString("buffer", b.name).apply()
     }
 }
