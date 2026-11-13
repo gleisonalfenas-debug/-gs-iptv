@@ -71,6 +71,7 @@ abstract class PosterStage(ctx: Context, attrs: AttributeSet?) : FrameLayout(ctx
     var onChange: ((Item?) -> Unit)? = null
     var onUp: (() -> Unit)? = null
     var onLeftEdge: (() -> Unit)? = null
+    var onDown: (() -> Unit)? = null
 
     var items: List<Item> = emptyList()
         protected set
@@ -106,7 +107,7 @@ abstract class PosterStage(ctx: Context, attrs: AttributeSet?) : FrameLayout(ctx
                 return true
             }
             KeyEvent.KEYCODE_DPAD_UP -> { onUp?.invoke(); return true }
-            KeyEvent.KEYCODE_DPAD_DOWN -> return true
+            KeyEvent.KEYCODE_DPAD_DOWN -> { onDown?.invoke(); return true }
             KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER, KeyEvent.KEYCODE_NUMPAD_ENTER -> {
                 current()?.let { onPick?.invoke(it, index) }
                 return true
@@ -228,6 +229,55 @@ class SpiralView @JvmOverloads constructor(ctx: Context, attrs: AttributeSet? = 
                 .setDuration(if (dir == 0) 0 else 260)
                 .setInterpolator(DecelerateInterpolator())
                 .start()
+        }
+        updateRing()
+    }
+
+    override fun updateRing() {
+        slots.forEachIndexed { i, c -> c.ring.visibility = if (i == side && hasFocus()) View.VISIBLE else View.GONE }
+    }
+}
+
+/**
+ * Vitrine: o destaque fica grande no meio e os vizinhos aparecem menores dos lados.
+ */
+class ShowcaseView @JvmOverloads constructor(ctx: Context, attrs: AttributeSet? = null) : PosterStage(ctx, attrs) {
+    private val side = 2
+    private val slots = ArrayList<PosterCard>()
+    private val cardW = dp(520)
+    private val cardH = dp(240)
+
+    init {
+        clipChildren = true
+        for (i in 0..side * 2) {
+            val c = PosterCard(context)
+            addView(c, LayoutParams(cardW, cardH, Gravity.CENTER))
+            slots.add(c)
+        }
+    }
+
+    private fun place(k: Int): FloatArray {
+        val a = abs(k)
+        if (k == 0) return floatArrayOf(0f, 1f, 1f)
+        val scale = if (a == 1) 0.62f else 0.45f
+        val x = (cardW / 2f + cardW * scale / 2f + dp(26)) * (if (a == 1) 1f else 1.75f) * if (k > 0) 1 else -1
+        return floatArrayOf(x, scale, if (a == 1) 0.45f else 0.15f)
+    }
+
+    override fun layoutCards(prevIndex: Int, dir: Int) {
+        for (k in -side..side) {
+            val card = slots[k + side]
+            val pos = index + k
+            card.bind(if (pos >= 0) items.getOrNull(pos) else null)
+            val p = place(k)
+            card.translationZ = (10 - abs(k) * 4).toFloat()
+            card.animate().cancel()
+            if (dir != 0) {
+                val from = place((k + dir).coerceIn(-side, side))
+                card.translationX = from[0]; card.scaleX = from[1]; card.scaleY = from[1]; card.alpha = from[2]
+            }
+            card.animate().translationX(p[0]).scaleX(p[1]).scaleY(p[1]).alpha(p[2])
+                .setDuration(if (dir == 0) 0 else 240).setInterpolator(DecelerateInterpolator()).start()
         }
         updateRing()
     }

@@ -55,8 +55,9 @@ class MainActivity : AppCompatActivity() {
     private lateinit var spiral: SpiralView
     private lateinit var gamesView: View
     private lateinit var homeView: View
-    private lateinit var homeRows: RecyclerView
-    private lateinit var homeAdapter: HomeAdapter
+    private lateinit var showcase: ShowcaseView
+    private lateinit var storiesRow: HRow
+    private lateinit var bottomRow: HRow
     private lateinit var gamesList: TvList
     private lateinit var gameAdapter: GameAdapter
     private lateinit var highlightView: View
@@ -112,21 +113,21 @@ class MainActivity : AppCompatActivity() {
         spiral = findViewById(R.id.spiral)
         gamesView = findViewById(R.id.gamesView)
         homeView = findViewById(R.id.homeView)
-        homeRows = findViewById(R.id.homeRows)
-        homeAdapter = HomeAdapter(
-            lite = { lite },
-            onFocus = { item -> showHero(item) },
-            onClick = { row, i ->
-                val item = row.items[i]
-                when {
-                    item.url.startsWith(Xtream.SERIES_PREFIX) -> openSeries(item)
-                    else -> { if (item.kind == Kind.LIVE) current = item; openFullscreen(row.items, i) }
-                }
-            },
-        )
-        homeRows.layoutManager = LinearLayoutManager(this)
-        homeRows.adapter = homeAdapter
-        homeRows.itemAnimator = null
+        showcase = findViewById(R.id.showcase)
+        storiesRow = findViewById(R.id.storiesRow)
+        bottomRow = findViewById(R.id.bottomRow)
+        storiesRow.layoutManager = LinearLayoutManager(this, LinearLayoutManager.HORIZONTAL, false)
+        bottomRow.layoutManager = LinearLayoutManager(this, LinearLayoutManager.HORIZONTAL, false)
+        storiesRow.itemAnimator = null
+        bottomRow.itemAnimator = null
+        val showcaseInfo = findViewById<TextView>(R.id.showcaseInfo)
+        showcase.onChange = { item -> showcaseInfo.text = item?.let { "${it.group}  ·  OK para assistir" } ?: "" }
+        showcase.onPick = { item, pos ->
+            if (item.url.startsWith(Xtream.SERIES_PREFIX)) openSeries(item)
+            else { if (item.kind == Kind.LIVE) current = item; openFullscreen(showcase.items, pos) }
+        }
+        showcase.onUp = { tabViews[tab.ordinal].requestFocus() }
+        showcase.onDown = { storiesRow.post { storiesRow.findViewHolderForAdapterPosition(0)?.itemView?.requestFocus() } }
         gamesList = findViewById(R.id.gamesList)
         gameAdapter = GameAdapter { g -> onGameClick(g) }
         gamesList.layoutManager = LinearLayoutManager(this)
@@ -178,29 +179,12 @@ class MainActivity : AppCompatActivity() {
         if (!Store.hasList(this)) openSendList() else startup()
     }
 
-    // ---------------- Início em fileiras ----------------
-    private fun buildHomeRows(): List<HomeRow> {
-        val rows = ArrayList<HomeRow>()
-        val live = Store.tab(Tab.TV).items
-        val favs = Store.favorites(this)
-        val last = Store.lastUrl(this)
-        if (live.isNotEmpty()) {
-            val recent = live.filter { it.url == last }
-            val favList = live.filter { favs.contains(it.url) }
-            if (recent.isNotEmpty() || favList.isNotEmpty())
-                rows.add(HomeRow("Continuar assistindo e favoritos", (recent + favList).distinctBy { it.url }.take(30), false))
-            rows.add(HomeRow("Canais ao vivo", live.take(30), false))
-            Games.sportsChannels().take(30).takeIf { it.isNotEmpty() && it.size < live.size }?.let { rows.add(HomeRow("Esportes", it, false)) }
-        }
-        Store.tab(Tab.HIGHLIGHTS).items.take(30).takeIf { it.isNotEmpty() }?.let { rows.add(HomeRow("Lançamentos", it, true)) }
-        Store.tab(Tab.SERIES).items.take(30).takeIf { it.isNotEmpty() }?.let { rows.add(HomeRow("Séries", it, true)) }
-        Store.tab(Tab.KIDS).items.take(30).takeIf { it.isNotEmpty() }?.let { rows.add(HomeRow("Kids", it, true)) }
-        return rows
-    }
-
+    // ---------------- Início: vitrine ----------------
     private fun showHome() {
-        val rows = buildHomeRows()
-        if (rows.isEmpty()) {
+        val live = Store.tab(Tab.TV).items
+        val movies = Store.tab(Tab.HIGHLIGHTS).items
+        val series = Store.tab(Tab.SERIES).items
+        if (live.isEmpty() && movies.isEmpty() && series.isEmpty()) {
             homeView.visibility = View.GONE
             showPanel(Kind.LIVE)
             return
@@ -208,25 +192,34 @@ class MainActivity : AppCompatActivity() {
         sectionPanel.visibility = View.GONE
         empty.visibility = View.GONE
         homeView.visibility = View.VISIBLE
-        findViewById<View>(R.id.heroImage).visibility = if (lite) View.GONE else View.VISIBLE
-        homeAdapter.rows = rows
-        rows.firstOrNull()?.items?.firstOrNull()?.let { showHero(it) }
-    }
 
-    private fun showHero(item: Item) {
-        findViewById<TextView>(R.id.heroKind).text = when (item.kind) { Kind.LIVE -> "AO VIVO"; Kind.MOVIE -> "FILME"; Kind.SERIES -> "SÉRIE" }
-        findViewById<TextView>(R.id.heroTitle).text = item.name
-        findViewById<TextView>(R.id.heroMeta).text = item.group
-        val img = findViewById<ImageView>(R.id.heroImage)
-        if (!lite && item.logo.isNotEmpty()) img.load(item.logo) { size(600, 400) } else img.setImageDrawable(null)
+        // Vitrine: lançamentos; se não houver filmes baixados, os canais
+        val featured = (if (movies.isNotEmpty()) movies else live).take(30)
+        if (showcase.items !== featured) showcase.showItems(featured)
+
+        // Canais em bolinhas: último assistido e favoritos primeiro
+        val favs = Store.favorites(this)
+        val last = Store.lastUrl(this)
+        val chans = (live.filter { it.url == last } + live.filter { favs.contains(it.url) } + live).distinctBy { it.url }.take(40)
+        val chanClick: (Int) -> Unit = { i -> current = chans[i]; openFullscreen(chans, i) }
+        storiesRow.adapter = StoryAdapter(chans, lite, chanClick)
+
+        // Fileira de baixo: séries para maratonar (ou filmes, ou canais)
+        val (title, list) = when {
+            series.isNotEmpty() -> "Séries para maratonar" to series.take(30)
+            movies.size > 30 -> "Mais filmes" to movies.drop(30).take(30)
+            else -> "Canais ao vivo" to live.drop(40).take(30)
+        }
+        findViewById<TextView>(R.id.bottomTitle).text = title
+        val row = HomeRow(title, list, list.firstOrNull()?.kind != Kind.LIVE)
+        bottomRow.adapter = TileAdapter(row, lite, {}) { i ->
+            val item = list[i]
+            if (item.url.startsWith(Xtream.SERIES_PREFIX)) openSeries(item) else openFullscreen(list, i)
+        }
     }
 
     private fun focusFirstTile() {
-        homeRows.scrollToPosition(0)
-        homeRows.post {
-            val row = homeRows.findViewHolderForAdapterPosition(0) as? HomeAdapter.VH ?: return@post
-            row.list.post { row.list.findViewHolderForAdapterPosition(0)?.itemView?.requestFocus() }
-        }
+        showcase.requestFocus()
     }
 
     // ---------------- Jogos do dia ----------------

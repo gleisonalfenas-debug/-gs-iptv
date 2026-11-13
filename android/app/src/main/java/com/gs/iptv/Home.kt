@@ -143,3 +143,68 @@ class TileAdapter(
         }
     }
 }
+
+/** Canais em bolinhas (estilo "stories"): logo ou iniciais dentro de um anel colorido. */
+class StoryAdapter(
+    private val items: List<Item>,
+    private val lite: Boolean,
+    private val onClick: (Int) -> Unit,
+) : RecyclerView.Adapter<StoryAdapter.VH>() {
+
+    class VH(val root: LinearLayout, val ring: FrameLayout, val logo: ImageView, val initials: TextView, val name: TextView) : RecyclerView.ViewHolder(root)
+
+    override fun getItemCount() = items.size
+
+    override fun onCreateViewHolder(p: ViewGroup, t: Int): VH {
+        val ctx = p.context
+        val d = ctx.resources.displayMetrics.density
+        val root = LinearLayout(ctx).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER_HORIZONTAL
+            layoutParams = RecyclerView.LayoutParams((100 * d).toInt(), ViewGroup.LayoutParams.WRAP_CONTENT)
+            isFocusable = true
+        }
+        val ring = FrameLayout(ctx).apply { setPadding((4 * d).toInt(), (4 * d).toInt(), (4 * d).toInt(), (4 * d).toInt()) }
+        val inner = FrameLayout(ctx).apply {
+            background = GradientDrawable().apply { shape = GradientDrawable.OVAL; setColor(Color.parseColor("#2A0A10")) }
+            clipToOutline = true
+            outlineProvider = android.view.ViewOutlineProvider.BACKGROUND
+        }
+        val logo = ImageView(ctx).apply { scaleType = ImageView.ScaleType.FIT_CENTER; val pd = (12 * d).toInt(); setPadding(pd, pd, pd, pd) }
+        val initials = TextView(ctx).apply {
+            setTextColor(Color.WHITE); setTextSize(TypedValue.COMPLEX_UNIT_SP, 20f)
+            setTypeface(typeface, android.graphics.Typeface.BOLD); gravity = Gravity.CENTER
+        }
+        inner.addView(initials, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
+        inner.addView(logo, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
+        ring.addView(inner, FrameLayout.LayoutParams((68 * d).toInt(), (68 * d).toInt()))
+        val name = TextView(ctx).apply {
+            setTextColor(Color.parseColor("#E6DCDE")); setTextSize(TypedValue.COMPLEX_UNIT_SP, 13f)
+            maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END; gravity = Gravity.CENTER
+            setPadding(0, (6 * d).toInt(), 0, 0)
+        }
+        root.addView(ring)
+        root.addView(name, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+        return VH(root, ring, logo, initials, name)
+    }
+
+    override fun onBindViewHolder(h: VH, pos: Int) {
+        val it = items[pos]
+        h.name.text = it.name
+        h.initials.text = it.name.split(' ').filter { w -> w.isNotBlank() }.take(2).joinToString("") { w -> w.take(1).uppercase() }
+        if (!lite && it.logo.isNotEmpty()) { h.logo.visibility = View.VISIBLE; h.logo.load(it.logo) { size(140, 140) } }
+        else { h.logo.visibility = View.GONE; h.logo.setImageDrawable(null) }
+        // anel colorido nos 3 primeiros (recentes/favoritos), discreto nos outros
+        h.ring.background = GradientDrawable().apply {
+            shape = GradientDrawable.OVAL
+            if (pos < 3) { gradientType = GradientDrawable.SWEEP_GRADIENT; colors = intArrayOf(Color.parseColor("#F0C45C"), Color.parseColor("#E3162A"), Color.parseColor("#F0C45C")) }
+            else setColor(Color.parseColor("#33FFFFFF"))
+        }
+        h.root.setOnFocusChangeListener { v, has ->
+            v.animate().scaleX(if (has) 1.12f else 1f).scaleY(if (has) 1.12f else 1f).setDuration(120).start()
+            h.name.setTextColor(if (has) Color.WHITE else Color.parseColor("#E6DCDE"))
+            h.ring.foreground = if (has) GradientDrawable().apply { shape = GradientDrawable.OVAL; setStroke((3 * v.resources.displayMetrics.density).toInt(), Color.WHITE) } else null
+        }
+        h.root.setOnClickListener { _ -> val p = h.bindingAdapterPosition; if (p != RecyclerView.NO_POSITION) onClick(p) }
+    }
+}

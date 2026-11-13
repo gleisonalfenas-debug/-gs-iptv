@@ -196,7 +196,7 @@
             </LinearLayout>
         </LinearLayout>
 
-        <!-- Início em fileiras -->
+        <!-- Início: vitrine -->
         <LinearLayout
             android:id="@+id/homeView"
             android:layout_width="match_parent"
@@ -204,79 +204,50 @@
             android:orientation="vertical"
             android:visibility="gone">
 
-            <FrameLayout
-                android:id="@+id/hero"
+            <com.gs.iptv.ShowcaseView
+                android:id="@+id/showcase"
                 android:layout_width="match_parent"
-                android:layout_height="170dp"
-                android:background="@drawable/bg_dark_box">
+                android:layout_height="250dp" />
 
-                <ImageView
-                    android:id="@+id/heroImage"
-                    android:layout_width="360dp"
-                    android:layout_height="match_parent"
-                    android:layout_gravity="end"
-                    android:importantForAccessibility="no"
-                    android:scaleType="centerCrop" />
+            <TextView
+                android:id="@+id/showcaseInfo"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:gravity="center"
+                android:textColor="@color/pink_text"
+                android:textSize="15sp" />
 
-                <View
-                    android:layout_width="match_parent"
-                    android:layout_height="match_parent"
-                    android:background="@drawable/bg_hero_fade" />
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:text="Canais"
+                android:textSize="18sp"
+                android:textStyle="bold" />
 
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="match_parent"
-                    android:gravity="center_vertical"
-                    android:orientation="vertical"
-                    android:paddingHorizontal="28dp">
+            <com.gs.iptv.HRow
+                android:id="@+id/storiesRow"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:clipToPadding="false"
+                android:paddingVertical="8dp" />
 
-                    <TextView
-                        android:id="@+id/heroKind"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:letterSpacing="0.2"
-                        android:textColor="@color/gold"
-                        android:textSize="13sp"
-                        android:textStyle="bold" />
+            <TextView
+                android:id="@+id/bottomTitle"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:textSize="18sp"
+                android:textStyle="bold" />
 
-                    <TextView
-                        android:id="@+id/heroTitle"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginEnd="360dp"
-                        android:ellipsize="end"
-                        android:maxLines="1"
-                        android:textSize="36sp"
-                        android:textStyle="bold" />
-
-                    <TextView
-                        android:id="@+id/heroMeta"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:textColor="@color/pink_text"
-                        android:textSize="16sp" />
-
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="10dp"
-                        android:background="@drawable/bg_button"
-                        android:paddingHorizontal="18dp"
-                        android:paddingVertical="6dp"
-                        android:text="▶  OK para assistir"
-                        android:textColor="#3A2400"
-                        android:textSize="15sp"
-                        android:textStyle="bold" />
-                </LinearLayout>
-            </FrameLayout>
-
-            <androidx.recyclerview.widget.RecyclerView
-                android:id="@+id/homeRows"
+            <com.gs.iptv.HRow
+                android:id="@+id/bottomRow"
                 android:layout_width="match_parent"
                 android:layout_height="0dp"
-                android:layout_marginTop="12dp"
                 android:layout_weight="1"
-                android:clipToPadding="false" />
+                android:clipToPadding="false"
+                android:paddingVertical="8dp" />
         </LinearLayout>
 
         <!-- Jogos do dia -->
