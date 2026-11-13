@@ -86,7 +86,6 @@ class MainActivity : AppCompatActivity() {
 
         buildTabs()
         setupLists()
-        animateBackgroundLogo()
 
         findViewById<View>(R.id.btnSearch).setOnClickListener { openSearch() }
         findViewById<View>(R.id.btnSend).setOnClickListener { openSendList() }
@@ -122,25 +121,6 @@ class MainActivity : AppCompatActivity() {
         setupPanel()
         Http.warm(Store.playlistUrl(this)) // já resolve o endereço do servidor
         if (!Store.hasList(this)) openSendList() else startup()
-    }
-
-    /** Logo GS girando devagar no fundo da tela (leve: usa camada de hardware). */
-    private fun animateBackgroundLogo() {
-        val ring = findViewById<View>(R.id.bgRing)
-        val gs = findViewById<View>(R.id.bgGs)
-        ring.setLayerType(View.LAYER_TYPE_HARDWARE, null)
-        android.animation.ObjectAnimator.ofFloat(ring, View.ROTATION, 0f, 360f).apply {
-            duration = 24_000
-            repeatCount = android.animation.ValueAnimator.INFINITE
-            interpolator = android.view.animation.LinearInterpolator()
-            start()
-        }
-        android.animation.ObjectAnimator.ofFloat(gs, View.ALPHA, 0.7f, 1f).apply {
-            duration = 3_000
-            repeatCount = android.animation.ValueAnimator.INFINITE
-            repeatMode = android.animation.ValueAnimator.REVERSE
-            start()
-        }
     }
 
     private fun confirmExit() {
