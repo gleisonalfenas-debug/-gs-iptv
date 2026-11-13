@@ -8,16 +8,28 @@ import android.widget.TextView
 import androidx.recyclerview.widget.RecyclerView
 import coil.load
 
+/** Avisa a lista que algo mudou sem quebrar se ela estiver no meio de um desenho/rolagem. */
+internal fun RecyclerView.Adapter<*>.safeNotify(rv: RecyclerView?, block: () -> Unit) {
+    if (rv != null && rv.isComputingLayout) rv.post { block() } else block()
+}
+
 /** Lista de categorias (coluna da esquerda). */
 class CategoryAdapter(
     private val onFocus: (Int) -> Unit,
 ) : RecyclerView.Adapter<CategoryAdapter.VH>() {
     private var sel = 0
+    private var rv: RecyclerView? = null
+    override fun onAttachedToRecyclerView(r: RecyclerView) { rv = r }
+    override fun onDetachedFromRecyclerView(r: RecyclerView) { rv = null }
+
     var items: List<String> = emptyList()
-        set(v) { field = v; sel = 0; notifyDataSetChanged() }
+        set(v) { field = v; sel = 0; safeNotify(rv) { notifyDataSetChanged() } }
     var selected: Int
         get() = sel
-        set(v) { val old = sel; sel = v; notifyItemChanged(old); notifyItemChanged(v) }
+        set(v) {
+            val old = sel; sel = v
+            safeNotify(rv) { if (old < itemCount) notifyItemChanged(old); if (v < itemCount) notifyItemChanged(v) }
+        }
 
     class VH(val text: TextView) : RecyclerView.ViewHolder(text)
 
@@ -45,13 +57,17 @@ class ChannelAdapter(
     private val onClick: (Item, Int) -> Unit,
     private val onLongClick: (Item, Int) -> Unit,
 ) : RecyclerView.Adapter<ChannelAdapter.VH>() {
+    private var rv: RecyclerView? = null
+    override fun onAttachedToRecyclerView(r: RecyclerView) { rv = r }
+    override fun onDetachedFromRecyclerView(r: RecyclerView) { rv = null }
+
     var items: List<Item> = emptyList()
-        set(v) { field = v; notifyDataSetChanged() }
+        set(v) { field = v; safeNotify(rv) { notifyDataSetChanged() } }
     var playingUrl: String? = null
         set(v) { field = v; refresh() }
 
     /** Atualiza os itens sem perder o foco do controle remoto. */
-    fun refresh() = notifyItemRangeChanged(0, itemCount)
+    fun refresh() = safeNotify(rv) { notifyItemRangeChanged(0, itemCount) }
     var favorites: Set<String> = emptySet()
 
     class VH(v: View) : RecyclerView.ViewHolder(v) {

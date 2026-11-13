@@ -29,9 +29,15 @@ object PlayerFactory {
             .build()
         val renderers = DefaultRenderersFactory(ctx)
             .setEnableDecoderFallback(true) // se o decodificador da TV falhar, tenta outro
+        // Canais em TS: começa a mostrar o vídeo sem esperar o próximo quadro-chave completo
+        val extractors = androidx.media3.extractor.DefaultExtractorsFactory()
+            .setTsExtractorFlags(
+                androidx.media3.extractor.ts.DefaultTsPayloadReaderFactory.FLAG_ALLOW_NON_IDR_KEYFRAMES or
+                    androidx.media3.extractor.ts.DefaultTsPayloadReaderFactory.FLAG_DETECT_ACCESS_UNITS
+            )
         return ExoPlayer.Builder(ctx, renderers)
             .setLoadControl(load)
-            .setMediaSourceFactory(DefaultMediaSourceFactory(http))
+            .setMediaSourceFactory(DefaultMediaSourceFactory(http, extractors))
             .build()
     }
 }
@@ -44,8 +50,13 @@ class SmartPlay(
     private val ctx: Context,
     val player: ExoPlayer,
     private val preview: Boolean = false,
+    /** Mensagens para o usuário: "tentando outra rota", motivo do erro etc. */
+    private val onStatus: (String) -> Unit = {},
     private val onFail: () -> Unit,
 ) {
+    var lastError: String? = null
+        private set
+
     private var routes: List<String> = emptyList()
     private var index = 0
     var current: Item? = null
@@ -62,17 +73,52 @@ class SmartPlay(
                 if (error.errorCode == PlaybackException.ERROR_CODE_BEHIND_LIVE_WINDOW) {
                     player.seekToDefaultPosition(); player.prepare(); return
                 }
-                if (index + 1 < routes.size) { index++; Diag.log("Trocando rota de \"${current?.name}\""); start() }
-                else { current?.let { Diag.failed(it.name) }; onFail() }
+                val why = describe(error)
+                lastError = why
+                Diag.log("Erro em \"${current?.name}\": $why")
+                if (index + 1 < routes.size) {
+                    index++
+                    onStatus("$why · tentando outra rota…")
+                    start()
+                } else {
+                    current?.let { Diag.failed(it.name) }
+                    onStatus(why)
+                    onFail()
+                }
             }
         })
     }
 
     fun play(item: Item) {
         current = item
+        lastError = null
         routes = Store.playRoutes(ctx, item)
         index = 0
         start()
+    }
+
+    /** Explica o erro em português simples. */
+    private fun describe(e: PlaybackException): String = when (e.errorCode) {
+        PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED -> "Sem conexão com o servidor"
+        PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_TIMEOUT -> "O servidor não respondeu a tempo"
+        PlaybackException.ERROR_CODE_IO_BAD_HTTP_STATUS -> {
+            val code = (e.cause as? androidx.media3.datasource.HttpDataSource.InvalidResponseCodeException)?.responseCode ?: 0
+            when (code) {
+                401, 403 -> "Servidor negou o acesso (login ou limite de telas)"
+                404 -> "Canal não encontrado no servidor"
+                in 500..599 -> "Servidor com problema (erro $code)"
+                else -> "Servidor recusou (erro $code)"
+            }
+        }
+        PlaybackException.ERROR_CODE_IO_FILE_NOT_FOUND -> "Canal não encontrado no servidor"
+        PlaybackException.ERROR_CODE_PARSING_CONTAINER_MALFORMED,
+        PlaybackException.ERROR_CODE_PARSING_MANIFEST_MALFORMED,
+        PlaybackException.ERROR_CODE_PARSING_CONTAINER_UNSUPPORTED,
+        PlaybackException.ERROR_CODE_IO_INVALID_HTTP_CONTENT_TYPE -> "O servidor mandou um formato inválido"
+        PlaybackException.ERROR_CODE_DECODER_INIT_FAILED,
+        PlaybackException.ERROR_CODE_DECODING_FAILED,
+        PlaybackException.ERROR_CODE_DECODING_FORMAT_UNSUPPORTED -> "A TV não conseguiu decodificar este vídeo"
+        else -> "Erro ao abrir (${e.errorCodeName})"
     }
 
     private fun start() {

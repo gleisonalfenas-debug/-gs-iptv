@@ -49,10 +49,14 @@ class PlayerActivity : AppCompatActivity() {
     private var bitrate = 0L          // velocidade estimada (bits/s)
     private var openStartedAt = 0L    // para medir quanto o canal demora para abrir
     private var osdUntil = 0L
+    private var status: String? = null    // aviso de conexão/erro
+    private var openedInMs = 0L
 
     private val ui = Handler(Looper.getMainLooper())
     private val osdTick = object : Runnable {
         override fun run() {
+            // enquanto o canal não abre, o aviso continua na tela
+            if (openStartedAt > 0) osdUntil = maxOf(osdUntil, System.currentTimeMillis() + 3_000)
             if (System.currentTimeMillis() >= osdUntil) { osd.visibility = View.GONE; return }
             osdInfo.text = infoText()
             ui.postDelayed(this, 1000)
@@ -76,6 +80,7 @@ class PlayerActivity : AppCompatActivity() {
         chList = findViewById(R.id.chList)
         chTitle = findViewById(R.id.chTitle)
 
+        Http.warm(Store.playlistUrl(this))
         queue = Store.playQueue
         index = savedInstanceState?.getInt("index") ?: intent.getIntExtra("index", 0)
         if (queue.isEmpty()) { finish(); return }
@@ -115,13 +120,20 @@ class PlayerActivity : AppCompatActivity() {
         super.onStart()
         if (queue.isEmpty()) return
         val p = PlayerFactory.create(this)
-        smart = SmartPlay(this, p) { osdInfo.text = "Não foi possível abrir este canal"; showOsd() }
+        smart = SmartPlay(this, p, onStatus = { msg -> status = msg; osdInfo.text = infoText(); showOsd() }) {
+            openStartedAt = 0
+            status = "${smart?.lastError ?: "Não foi possível abrir"} · aperte OK para escolher outro canal"
+            osdInfo.text = status
+            showOsd()
+        }
         p.addListener(object : Player.Listener {
             override fun onPlaybackStateChanged(state: Int) {
                 val item = queue.getOrNull(index) ?: return
                 if (state == Player.STATE_READY && openStartedAt > 0) {
-                    Diag.channelOpened(item.name, System.currentTimeMillis() - openStartedAt, smart?.currentRoute)
+                    openedInMs = System.currentTimeMillis() - openStartedAt
+                    Diag.channelOpened(item.name, openedInMs, smart?.currentRoute)
                     openStartedAt = 0
+                    status = null
                 } else if (state == Player.STATE_BUFFERING && openStartedAt == 0L) {
                     Diag.rebuffer(item.name)
                 }
@@ -160,6 +172,8 @@ class PlayerActivity : AppCompatActivity() {
         val item = queue[index]
         view.useController = item.kind != Kind.LIVE
         bitrate = 0
+        status = null
+        openedInMs = 0
         openStartedAt = System.currentTimeMillis()
         smart?.play(item)
         if (item.kind == Kind.LIVE) Store.setLastUrl(this, item.url)
@@ -177,6 +191,16 @@ class PlayerActivity : AppCompatActivity() {
     }
 
     private fun infoText(): String {
+        status?.let { return it }
+        if (openStartedAt > 0) {
+            val sec = (System.currentTimeMillis() - openStartedAt) / 1000
+            return when {
+                sec < 3 -> "Conectando ao servidor…"
+                sec < 8 -> "Servidor demorando para responder… ${sec}s"
+                else -> "Dificuldade para conectar ao servidor… ${sec}s"
+            }
+        }
+        val opened = if (openedInMs > 0) String.format(Locale("pt", "BR"), "Abriu em %.1fs · ", openedInMs / 1000.0) else ""
         val speed = when {
             bitrate <= 0 -> "medindo…"
             bitrate >= 1_000_000 -> String.format(Locale("pt", "BR"), "%.1f Mbps", bitrate / 1_000_000.0)
@@ -184,7 +208,7 @@ class PlayerActivity : AppCompatActivity() {
         }
         val q = player?.videoFormat?.let { f -> if (f.height > 0) " · ${f.height}p" else "" } ?: ""
         val state = when (player?.playbackState) { Player.STATE_BUFFERING -> " · carregando"; else -> "" }
-        return "Velocidade: $speed$q$state"
+        return "${opened}Velocidade: $speed$q$state"
     }
 
     // ---------- Lista de canais / categorias por cima do vídeo ----------
