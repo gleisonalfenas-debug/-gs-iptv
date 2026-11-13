@@ -93,10 +93,18 @@
     <!-- Abas -->
     <LinearLayout
         android:id="@+id/tabs"
-        android:layout_width="match_parent"
+        android:layout_width="wrap_content"
         android:layout_height="wrap_content"
+        android:layout_gravity="center_horizontal"
         android:layout_marginTop="6dp"
-        android:orientation="horizontal" />
+        android:background="@drawable/bg_dock"
+        android:clipChildren="false"
+        android:clipToPadding="false"
+        android:gravity="bottom"
+        android:orientation="horizontal"
+        android:paddingHorizontal="14dp"
+        android:paddingTop="10dp"
+        android:paddingBottom="6dp" />
 
     <FrameLayout
         android:layout_width="match_parent"

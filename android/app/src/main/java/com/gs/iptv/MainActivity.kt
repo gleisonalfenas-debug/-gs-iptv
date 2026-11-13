@@ -38,7 +38,7 @@ import java.util.Locale
 class MainActivity : AppCompatActivity() {
 
     private var tab = Tab.HOME
-    private val tabViews = ArrayList<TextView>()
+    private val tabViews = ArrayList<View>()
 
     private lateinit var liveView: View
     private lateinit var vodView: View
@@ -475,33 +475,88 @@ class MainActivity : AppCompatActivity() {
     }
 
     // ---------------- Abas ----------------
+    /** Dock de ícones: o ícone selecionado e os vizinhos crescem; pontinho embaixo da aba aberta. */
     private fun buildTabs() {
         val bar = findViewById<LinearLayout>(R.id.tabs)
+        (bar.parent as? android.view.ViewGroup)?.clipChildren = false
+        val style = mapOf(
+            Tab.HOME to (R.drawable.ic_tab_home to ("#E3162A" to "#8A0F19")),
+            Tab.TV to (R.drawable.ic_tab_tv to ("#3A8DFF" to "#1546A0")),
+            Tab.GAMES to (R.drawable.ic_tab_games to ("#2BC27A" to "#0B6B44")),
+            Tab.HIGHLIGHTS to (R.drawable.ic_tab_star to ("#FFC94A" to "#C27C00")),
+            Tab.MOVIES to (R.drawable.ic_tab_film to ("#9B5BFF" to "#4E1FA8")),
+            Tab.SERIES to (R.drawable.ic_tab_series to ("#FF5A6E" to "#A3142A")),
+            Tab.KIDS to (R.drawable.ic_tab_kids to ("#FF9A3D" to "#C2530A")),
+            Tab.ANIME to (R.drawable.ic_tab_anime to ("#FF6FC1" to "#A3226B")),
+        )
         Tab.values().forEach { t ->
-            val tv = TextView(this).apply {
-                text = t.label
-                setTextSize(TypedValue.COMPLEX_UNIT_SP, 20f)
-                setTypeface(typeface, android.graphics.Typeface.BOLD)
-                setTextColor(if (t == Tab.KIDS) Color.parseColor("#FFE27A") else Color.WHITE)
-                setBackgroundResource(R.drawable.bg_tab)
-                gravity = Gravity.CENTER
-                val h = dp(20); val v = dp(7)
-                setPadding(h, v, h, v)
+            val (icon, colors) = style[t] ?: (R.drawable.ic_tab_star to ("#888888" to "#444444"))
+            val item = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                gravity = Gravity.CENTER_HORIZONTAL
                 isFocusable = true
-                setOnFocusChangeListener { _, has -> if (has && t != tab) showTab(t) }
-                setOnKeyListener { _, code, ev ->
-                    if (ev.action == android.view.KeyEvent.ACTION_DOWN && code == android.view.KeyEvent.KEYCODE_DPAD_DOWN) {
-                        focusContent(); true
-                    } else false
-                }
-                setOnClickListener { showTab(t) }
+                clipChildren = false
+                pivotY = dp(60).toFloat()
             }
-            val lp = LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT)
-            lp.marginEnd = dp(8)
-            bar.addView(tv, lp)
-            tabViews.add(tv)
+            val tile = ImageView(this).apply {
+                setImageResource(icon)
+                val pd = dp(10); setPadding(pd, pd, pd, pd)
+                background = android.graphics.drawable.GradientDrawable(
+                    android.graphics.drawable.GradientDrawable.Orientation.TL_BR,
+                    intArrayOf(Color.parseColor(colors.first), Color.parseColor(colors.second)),
+                ).apply { cornerRadius = dp(13).toFloat() }
+                elevation = dp(4).toFloat()
+            }
+            val label = TextView(this).apply {
+                text = t.label.lowercase().replaceFirstChar { it.uppercase() }
+                setTextSize(TypedValue.COMPLEX_UNIT_SP, 11f)
+                setTextColor(Color.WHITE)
+                gravity = Gravity.CENTER
+                alpha = 0f
+            }
+            val dot = View(this).apply {
+                background = android.graphics.drawable.GradientDrawable().apply {
+                    shape = android.graphics.drawable.GradientDrawable.OVAL; setColor(Color.WHITE)
+                }
+                visibility = View.INVISIBLE
+                tag = "dot"
+            }
+            item.addView(label, LinearLayout.LayoutParams(dp(80), LinearLayout.LayoutParams.WRAP_CONTENT))
+            item.addView(tile, LinearLayout.LayoutParams(dp(46), dp(46)))
+            item.addView(dot, LinearLayout.LayoutParams(dp(5), dp(5)).apply { topMargin = dp(4) })
+            item.setOnFocusChangeListener { _, has ->
+                label.animate().alpha(if (has) 1f else 0f).setDuration(120).start()
+                magnifyDock()
+                if (has && t != tab) showTab(t)
+            }
+            item.setOnKeyListener { _, code, ev ->
+                if (ev.action == android.view.KeyEvent.ACTION_DOWN && code == android.view.KeyEvent.KEYCODE_DPAD_DOWN) {
+                    focusContent(); true
+                } else false
+            }
+            item.setOnClickListener { showTab(t) }
+            bar.addView(item, LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply {
+                marginStart = dp(-10); marginEnd = dp(-10)
+            })
+            tabViews.add(item)
         }
         tabViews[0].isSelected = true
+        markDockSelected()
+    }
+
+    /** Efeito de lupa: o ícone com foco cresce bastante e os vizinhos um pouco. */
+    private fun magnifyDock() {
+        val f = tabViews.indexOfFirst { it.hasFocus() }
+        tabViews.forEachIndexed { i, v ->
+            val dist = if (f < 0) 99 else kotlin.math.abs(i - f)
+            val scale = when (dist) { 0 -> 1.45f; 1 -> 1.2f; 2 -> 1.07f; else -> 1f }
+            v.animate().scaleX(scale).scaleY(scale).translationY(if (dist == 0) -dp(6).toFloat() else 0f)
+                .setDuration(if (lite) 0 else 140).start()
+        }
+    }
+
+    private fun markDockSelected() {
+        tabViews.forEachIndexed { i, v -> v.findViewWithTag<View>("dot")?.visibility = if (i == tab.ordinal) View.VISIBLE else View.INVISIBLE }
     }
 
     private fun setupLists() {
@@ -587,6 +642,7 @@ class MainActivity : AppCompatActivity() {
         if (t != Tab.HOME) stopBubblePreview()
         tab = t
         tabViews.forEachIndexed { i, v -> v.isSelected = i == t.ordinal }
+        markDockSelected()
         val missing = kindsFor(t).filterNot { Store.isLoaded(it) }
         if (missing.isNotEmpty()) {
             // Seção ainda não baixada: se já tem cópia salva abre direto, senão mostra o painel
