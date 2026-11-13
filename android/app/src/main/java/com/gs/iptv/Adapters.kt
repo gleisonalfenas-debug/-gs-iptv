@@ -178,6 +178,12 @@ class GameAdapter(
         if (g.homeBadge.isNotEmpty()) h.homeBadge.load(g.homeBadge) { size(96, 96) } else h.homeBadge.setImageDrawable(null)
         if (g.awayBadge.isNotEmpty()) h.awayBadge.load(g.awayBadge) { size(96, 96) } else h.awayBadge.setImageDrawable(null)
         h.alarm.visibility = if (scheduled.contains(g.id)) View.VISIBLE else View.INVISIBLE
+        // jogo ao vivo: etiqueta piscando
+        if (g.started() && !g.finished()) Motion.blink(h.state) else Motion.stopPulse(h.state)
+        h.itemView.setOnFocusChangeListener { _, has ->
+            if (has) { Motion.pulse(h.homeBadge, true); Motion.pulse(h.awayBadge, true) }
+            else { Motion.stopPulse(h.homeBadge); Motion.stopPulse(h.awayBadge) }
+        }
         h.itemView.setOnClickListener { _ ->
             val p = h.bindingAdapterPosition
             if (p != RecyclerView.NO_POSITION) onClick(items[p])

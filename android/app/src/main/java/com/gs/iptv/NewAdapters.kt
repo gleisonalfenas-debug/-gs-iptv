@@ -130,10 +130,14 @@ class GridAdapter(
             intArrayOf(colorOf(it.name), Color.parseColor("#15171D"))).apply { cornerRadius = 12 * h.itemView.resources.displayMetrics.density }
         if (showImages() && it.logo.isNotEmpty()) { h.poster.visibility = View.VISIBLE; h.poster.load(it.logo) { size(300, 450) } }
         else { h.poster.visibility = View.GONE; h.poster.setImageDrawable(null) }
-        h.itemView.setOnFocusChangeListener { _, has -> h.frame.isSelected = has }
+        h.frame.clipToOutline = true
+        h.frame.outlineProvider = android.view.ViewOutlineProvider.BACKGROUND
         h.itemView.setOnFocusChangeListener { v, has ->
             h.frame.foreground?.state = if (has) intArrayOf(android.R.attr.state_focused) else intArrayOf()
             v.animate().scaleX(if (has) 1.05f else 1f).scaleY(if (has) 1.05f else 1f).setDuration(110).start()
+            // capa animada: câmera lenta + brilho
+            if (has && h.poster.visibility == View.VISIBLE) { Motion.kenBurns(h.poster); Motion.shine(h.frame as FrameLayout) }
+            else Motion.stopKenBurns(h.poster)
         }
         h.itemView.setOnClickListener { _ -> val p = h.bindingAdapterPosition; if (p != RecyclerView.NO_POSITION) onClick(p) }
     }
@@ -230,7 +234,12 @@ class ContinueAdapter(
         h.frame.background = GradientDrawable(GradientDrawable.Orientation.TL_BR, intArrayOf(colorOf(e.item.name), Color.parseColor("#15171D")))
             .apply { cornerRadius = 12 * h.root.resources.displayMetrics.density }
         if (showImages && e.item.logo.isNotEmpty()) h.img.load(e.item.logo) { size(500, 280) } else h.img.setImageDrawable(null)
-        h.root.setOnFocusChangeListener { v, has -> h.frame.foreground?.state = if (has) intArrayOf(android.R.attr.state_focused) else intArrayOf() }
+        h.frame.clipToOutline = true
+        h.frame.outlineProvider = android.view.ViewOutlineProvider.BACKGROUND
+        h.root.setOnFocusChangeListener { _, has ->
+            h.frame.foreground?.state = if (has) intArrayOf(android.R.attr.state_focused) else intArrayOf()
+            if (has && showImages) { Motion.kenBurns(h.img); Motion.shine(h.frame) } else Motion.stopKenBurns(h.img)
+        }
         h.root.setOnClickListener { onClick(h.bindingAdapterPosition) }
     }
 }
@@ -289,6 +298,10 @@ class BigTileAdapter(
         h.root.setOnFocusChangeListener { v, has ->
             h.box.foreground?.state = if (has) intArrayOf(android.R.attr.state_focused) else intArrayOf()
             v.animate().scaleX(if (has) 1.06f else 1f).scaleY(if (has) 1.06f else 1f).setDuration(110).start()
+            if (has && kids) {
+                if (h.img.visibility == View.VISIBLE) Motion.kenBurns(h.img) else Motion.pulse(h.ini)
+                Motion.shine(h.box)
+            } else { Motion.stopKenBurns(h.img); Motion.stopPulse(h.ini) }
         }
         h.root.setOnClickListener { onClick(h.bindingAdapterPosition) }
     }

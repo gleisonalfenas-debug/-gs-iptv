@@ -292,7 +292,13 @@ class MainActivity : AppCompatActivity() {
         findViewById<TextView>(R.id.heroTitle).text = featured?.name ?: ""
         findViewById<TextView>(R.id.heroMeta).text = featured?.group ?: ""
         val heroImg = findViewById<ImageView>(R.id.heroImg)
-        if (!lite && featured != null && featured.logo.isNotEmpty()) heroImg.load(featured.logo) { size(900, 500) } else heroImg.setImageDrawable(null)
+        val heroBox = findViewById<android.widget.FrameLayout>(R.id.hero)
+        heroBox.clipToOutline = true
+        heroBox.outlineProvider = android.view.ViewOutlineProvider.BACKGROUND
+        if (!lite && featured != null && featured.logo.isNotEmpty()) {
+            heroImg.load(featured.logo) { size(900, 500) }
+            heroImg.post { Motion.kenBurns(heroImg, slow = true) }   // destaque sempre em movimento
+        } else { heroImg.setImageDrawable(null); Motion.stopKenBurns(heroImg) }
 
         // continuar assistindo
         val cont = Watch.list(this)

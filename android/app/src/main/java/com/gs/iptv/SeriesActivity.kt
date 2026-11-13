@@ -80,6 +80,12 @@ class SeriesActivity : AppCompatActivity() {
                 .filter { it.isNotBlank() }.joinToString(" · ")
             findViewById<TextView>(R.id.plot).text = info.plot
             if (!lite && info.cover.isNotEmpty()) cover.load(info.cover) { size(500, 700) }
+            if (!lite) {
+                val box = findViewById<android.widget.FrameLayout>(R.id.coverBox)
+                box.clipToOutline = true
+                box.outlineProvider = android.view.ViewOutlineProvider.BACKGROUND
+                cover.post { Motion.kenBurns(cover, slow = true) }
+            }
             seasons = info.seasons.map { (s, list) -> "Temporada $s" to list }
             seasonAdapter.items = seasons.map { it.first }
             setupResume(resume)
