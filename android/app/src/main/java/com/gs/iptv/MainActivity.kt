@@ -340,11 +340,14 @@ class MainActivity : AppCompatActivity() {
             visibility = if (cont.isEmpty()) View.GONE else View.VISIBLE
             adapter = ContinueAdapter(cont, !lite) { i -> openItem(cont.map { it.item }, i) }
         }
-        // canais favoritos (ou os primeiros canais)
-        val favs = Store.favorites(this)
-        val favList = live.filter { favs.contains(it.url) }.ifEmpty { live.take(20) }
-        findViewById<TextView>(R.id.favTitle).text = if (live.any { favs.contains(it.url) }) "Canais favoritos" else "Canais"
-        findViewById<HRow>(R.id.favRow).adapter = BigTileAdapter(favList, !lite, false) { i -> openItem(favList, i) }
+        // assistidos recentemente (filmes, séries e kids) no lugar dos canais
+        val recent = Watch.recent(this).map { it.item }
+        findViewById<TextView>(R.id.favTitle).text = "Assistidos recentemente"
+        findViewById<View>(R.id.favTitle).visibility = if (recent.isEmpty()) View.GONE else View.VISIBLE
+        findViewById<HRow>(R.id.favRow).apply {
+            visibility = if (recent.isEmpty()) View.GONE else View.VISIBLE
+            adapter = TileAdapter(HomeRow("", recent, true), lite, {}) { i -> openItem(recent, i) }
+        }
         fun row(titleId: Int, rowId: Int, list: List<Item>) {
             findViewById<View>(titleId).visibility = if (list.isEmpty()) View.GONE else View.VISIBLE
             findViewById<HRow>(rowId).apply {

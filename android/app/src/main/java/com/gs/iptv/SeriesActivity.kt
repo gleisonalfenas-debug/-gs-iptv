@@ -86,7 +86,8 @@ class SeriesActivity : AppCompatActivity() {
                 box.outlineProvider = android.view.ViewOutlineProvider.BACKGROUND
                 cover.post { Motion.kenBurns(cover, slow = true) }
             }
-            seasons = info.seasons.map { (s, list) -> "Temporada $s" to list }
+            // episódios levam o nome da série (para aparecer certo no "Assistidos recentemente")
+            seasons = info.seasons.map { (s, list) -> "Temporada $s" to list.map { it.copy(group = "$name · T$s") } }
             seasonAdapter.items = seasons.map { it.first }
             setupResume(resume)
         }

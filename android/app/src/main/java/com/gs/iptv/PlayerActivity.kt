@@ -68,6 +68,10 @@ class PlayerActivity : AppCompatActivity() {
         }
     }
     private val hideOverlayTask = Runnable { hideOverlay() }
+    /** Salva a posição a cada 10 s (se a TV for desligada direto, não perde o ponto). */
+    private val autoSave = object : Runnable {
+        override fun run() { saveProgress(); ui.postDelayed(this, 10_000) }
+    }
     private lateinit var clock: TextView
     private val clockTick = object : Runnable {
         override fun run() {
@@ -160,6 +164,8 @@ class PlayerActivity : AppCompatActivity() {
             showFailOptions()
         }
         p.addListener(object : Player.Listener {
+            override fun onIsPlayingChanged(isPlaying: Boolean) { if (!isPlaying) saveProgress() }
+
             override fun onTracksChanged(tracks: Tracks) {
                 if (isLive) return
                 val a = tracksOf(C.TRACK_TYPE_AUDIO).size
@@ -208,6 +214,7 @@ class PlayerActivity : AppCompatActivity() {
     /** Guarda onde parou (filmes e episódios) para o "Continuar assistindo". */
     private fun saveProgress() {
         val p = player ?: return
+        if (p.playbackState == Player.STATE_IDLE || p.currentMediaItem == null) return
         val item = queue.getOrNull(index) ?: return
         if (item.kind == Kind.LIVE) return
         Watch.save(this, item, p.currentPosition, p.duration.takeIf { it > 0 } ?: 0)
@@ -233,12 +240,14 @@ class PlayerActivity : AppCompatActivity() {
         status = null
         openedInMs = 0
         openStartedAt = System.currentTimeMillis()
-        smart?.play(item)
-        // continua de onde parou
-        if (item.kind != Kind.LIVE) Watch.position(this, item.url).takeIf { it > 0 }?.let { pos ->
-            player?.seekTo(pos)
-            Toast.makeText(this, "Continuando de onde você parou", Toast.LENGTH_SHORT).show()
+        // continua do ponto exato onde parou (mesmo em outro dia)
+        val resumeAt = if (item.kind != Kind.LIVE) Watch.position(this, item.url) else 0L
+        smart?.play(item, resumeAt)
+        if (resumeAt > 0) {
+            val m = resumeAt / 60_000; val sec = (resumeAt / 1000) % 60
+            Toast.makeText(this, "Continuando de ${m}min ${sec}s", Toast.LENGTH_LONG).show()
         }
+        if (item.kind != Kind.LIVE) { ui.removeCallbacks(autoSave); ui.postDelayed(autoSave, 10_000) }
         if (item.kind == Kind.LIVE) Store.setLastUrl(this, item.url)
         osdName.text = if (item.number > 0) "${item.number}  ${item.name}" else item.name
         osdInfo.text = "Conectando…"

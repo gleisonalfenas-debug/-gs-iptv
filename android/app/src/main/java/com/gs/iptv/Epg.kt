@@ -77,7 +77,10 @@ object Epg {
     private fun enc(s: String) = URLEncoder.encode(s, "UTF-8")
 }
 
-/** Continuar assistindo: guarda onde você parou em filmes e episódios. */
+/**
+ * Continuar assistindo: guarda o ponto exato onde você parou em filmes, séries e kids.
+ * Também guarda a lista de "assistidos recentemente".
+ */
 object Watch {
     data class Entry(val item: Item, val pos: Long, val dur: Long, val at: Long) {
         val fraction get() = if (dur > 0) (pos.toFloat() / dur).coerceIn(0f, 1f) else 0f
@@ -86,27 +89,41 @@ object Watch {
 
     private fun prefs(ctx: Context) = ctx.getSharedPreferences("gs_watch", Context.MODE_PRIVATE)
 
-    fun list(ctx: Context): List<Entry> {
-        val arr = org.json.JSONArray(prefs(ctx).getString("list", "[]"))
+    private fun read(ctx: Context, key: String): List<Entry> {
+        val arr = org.json.JSONArray(prefs(ctx).getString(key, "[]"))
         return (0 until arr.length()).mapNotNull { i ->
             val o = arr.optJSONObject(i) ?: return@mapNotNull null
             val kind = Kind.values().getOrElse(o.optInt("k")) { Kind.MOVIE }
-            Entry(Item(o.optString("n"), o.optString("u"), o.optString("l"), o.optString("g"), kind, 0), o.optLong("p"), o.optLong("d"), o.optLong("t"))
+            Entry(Item(o.optString("n"), o.optString("u"), o.optString("l"), o.optString("g"), kind, 0, o.optInt("s")), o.optLong("p"), o.optLong("d"), o.optLong("t"))
         }
     }
+
+    private fun write(ctx: Context, key: String, list: List<Entry>, max: Int) {
+        val arr = org.json.JSONArray()
+        list.take(max).forEach { e ->
+            arr.put(JSONObject().put("n", e.item.name).put("u", e.item.url).put("l", e.item.logo).put("g", e.item.group)
+                .put("k", e.item.kind.ordinal).put("s", e.item.section).put("p", e.pos).put("d", e.dur).put("t", e.at))
+        }
+        prefs(ctx).edit().putString(key, arr.toString()).apply()
+    }
+
+    /** Filmes/episódios começados e não terminados (Continuar assistindo). */
+    fun list(ctx: Context): List<Entry> = read(ctx, "list")
+
+    /** Últimos filmes, séries e kids abertos (terminados ou não). */
+    fun recent(ctx: Context): List<Entry> = read(ctx, "recent")
 
     fun position(ctx: Context, url: String): Long = list(ctx).firstOrNull { it.item.url == url }?.pos ?: 0L
 
     fun save(ctx: Context, item: Item, pos: Long, dur: Long) {
-        if (item.kind == Kind.LIVE || dur <= 0) return
+        if (item.kind == Kind.LIVE) return
+        val now = System.currentTimeMillis()
+        // assistidos recentemente: entra sempre (o mais novo primeiro)
+        write(ctx, "recent", listOf(Entry(item, pos, dur, now)) + recent(ctx).filterNot { it.item.url == item.url }, 30)
+        if (dur <= 0) return
+        // continuar: guarda se passou de 5 s e ainda não chegou a 95% (terminou = sai da lista)
+        val keep = pos > 5_000 && pos < dur * 0.95
         val rest = list(ctx).filterNot { it.item.url == item.url }
-        val keep = pos > 30_000 && pos < dur - 90_000 // terminou ou mal começou: sai da lista
-        val newList = (if (keep) listOf(Entry(item, pos, dur, System.currentTimeMillis())) else emptyList()) + rest
-        val arr = org.json.JSONArray()
-        newList.take(20).forEach { e ->
-            arr.put(JSONObject().put("n", e.item.name).put("u", e.item.url).put("l", e.item.logo).put("g", e.item.group)
-                .put("k", e.item.kind.ordinal).put("p", e.pos).put("d", e.dur).put("t", e.at))
-        }
-        prefs(ctx).edit().putString("list", arr.toString()).apply()
+        write(ctx, "list", (if (keep) listOf(Entry(item, pos, dur, now)) else emptyList()) + rest, 30)
     }
 }

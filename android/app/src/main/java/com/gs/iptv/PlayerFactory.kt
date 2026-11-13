@@ -89,7 +89,13 @@ class SmartPlay(
         })
     }
 
-    fun play(item: Item) {
+    /** Posição de onde começar (continuar de onde parou); vale também se trocar de rota. */
+    private var startAt = 0L
+    private var fresh = true
+
+    fun play(item: Item, startPositionMs: Long = 0L) {
+        startAt = startPositionMs
+        fresh = true
         current = item
         lastError = null
         routes = Store.playRoutes(ctx, item)
@@ -123,6 +129,8 @@ class SmartPlay(
 
     /** Força uma rota específica (usado nas "outras opções" quando o canal não abre). */
     fun playDirect(item: Item, url: String) {
+        fresh = true
+        startAt = 0L
         current = item
         lastError = null
         routes = listOf(url)
@@ -142,7 +150,10 @@ class SmartPlay(
                 if (b.liveOffsetMs > 0) setLiveConfiguration(MediaItem.LiveConfiguration.Builder().setTargetOffsetMs(b.liveOffsetMs).build())
             }
             .build()
-        player.setMediaItem(media)
+        // se já tinha avançado, mantém a posição ao trocar de rota
+        val pos = if (fresh) startAt else maxOf(player.currentPosition, startAt)
+        fresh = false
+        if (pos > 0) player.setMediaItem(media, pos) else player.setMediaItem(media)
         player.prepare()
         player.playWhenReady = true
     }
