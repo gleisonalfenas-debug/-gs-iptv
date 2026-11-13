@@ -16,45 +16,34 @@ object Xtream {
     private fun api(l: Store.XtreamLogin, action: String, extra: String = "") =
         "${l.server}/player_api.php?username=${enc(l.user)}&password=${enc(l.pass)}&action=$action$extra"
 
-    /** Baixa só uma seção: canais ao vivo, filmes ou séries. */
+    /** Baixa só uma seção: canais ao vivo, filmes ou séries. Categorias e itens vêm ao mesmo tempo. */
     fun loadSection(ctx: Context, kind: Kind, progress: (String) -> Unit): List<Item> {
         val l = Store.xtreamLogin(ctx)
-        val out = ArrayList<Item>()
-        progress("Entrando no servidor…")
-        when (kind) {
-            Kind.LIVE -> {
-                val cats = categories(l, "get_live_categories")
-                progress("Baixando canais ao vivo…")
-                var n = 0
-                readArray(api(l, "get_live_streams")) { o ->
-                    val id = o["stream_id"] ?: return@readArray
-                    out.add(Store.make(o["name"].orEmpty(), "${Store.XT}live/$id.ts",
-                        o["stream_icon"].orEmpty(), cats[o["category_id"]] ?: "Outros", Kind.LIVE, ++n))
-                    if (n % 500 == 0) progress("Baixando canais ao vivo… $n")
-                }
-            }
-            Kind.MOVIE -> {
-                val cats = categories(l, "get_vod_categories")
-                progress("Baixando filmes…")
-                var m = 0
-                readArray(api(l, "get_vod_streams")) { o ->
-                    val id = o["stream_id"] ?: return@readArray
-                    val ext = o["container_extension"].orEmpty().ifEmpty { "mp4" }
-                    out.add(Store.make(o["name"].orEmpty(), "${Store.XT}movie/$id.$ext",
-                        o["stream_icon"].orEmpty(), cats[o["category_id"]] ?: "Filmes", Kind.MOVIE, 0))
-                    if (++m % 1000 == 0) progress("Baixando filmes… $m")
-                }
-            }
-            Kind.SERIES -> {
-                val cats = categories(l, "get_series_categories")
-                progress("Baixando séries…")
-                var s = 0
-                readArray(api(l, "get_series")) { o ->
-                    val id = o["series_id"] ?: return@readArray
-                    out.add(Store.make(o["name"].orEmpty(), "$SERIES_PREFIX$id",
-                        o["cover"].orEmpty(), cats[o["category_id"]] ?: "Séries", Kind.SERIES, 0))
-                    if (++s % 500 == 0) progress("Baixando séries… $s")
-                }
+        val (catAction, action, fallback) = when (kind) {
+            Kind.LIVE -> Triple("get_live_categories", "get_live_streams", "Outros")
+            Kind.MOVIE -> Triple("get_vod_categories", "get_vod_streams", "Filmes")
+            Kind.SERIES -> Triple("get_series_categories", "get_series", "Séries")
+        }
+        // categorias em paralelo com a lista de itens
+        var cats: Map<String, String> = emptyMap()
+        val catThread = kotlin.concurrent.thread(isDaemon = true) { cats = categories(l, catAction) }
+        progress("Baixando ${Store.label(kind)}…")
+        val raw = ArrayList<Array<String>>()
+        readArray(api(l, action)) { o ->
+            val id = (if (kind == Kind.SERIES) o["series_id"] else o["stream_id"]) ?: return@readArray
+            val icon = (if (kind == Kind.SERIES) o["cover"] else o["stream_icon"]).orEmpty()
+            raw.add(arrayOf(o["name"].orEmpty(), id, icon, o["category_id"].orEmpty(), o["container_extension"].orEmpty()))
+            if (raw.size % 1000 == 0) progress("Baixando ${Store.label(kind)}… ${raw.size}")
+        }
+        catThread.join(15_000)
+        val out = ArrayList<Item>(raw.size)
+        var n = 0
+        for (r in raw) {
+            val group = cats[r[3]] ?: fallback
+            when (kind) {
+                Kind.LIVE -> out.add(Store.make(r[0], "${Store.XT}live/${r[1]}.ts", r[2], group, Kind.LIVE, ++n))
+                Kind.MOVIE -> out.add(Store.make(r[0], "${Store.XT}movie/${r[1]}.${r[4].ifEmpty { "mp4" }}", r[2], group, Kind.MOVIE, 0))
+                Kind.SERIES -> out.add(Store.make(r[0], "$SERIES_PREFIX${r[1]}", r[2], group, Kind.SERIES, 0))
             }
         }
         return out

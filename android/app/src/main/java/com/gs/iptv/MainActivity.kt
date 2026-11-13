@@ -433,7 +433,7 @@ class MainActivity : AppCompatActivity() {
         if (missing.isNotEmpty()) {
             // Seção ainda não baixada: se já tem cópia salva abre direto, senão mostra o painel
             if (loadingNow) return
-            if (missing.all { Store.hasFreshCache(this, it) }) { loadKinds(missing, force = false); return }
+            if (missing.all { Store.hasCache(this, it) }) { loadKinds(missing, force = false, silent = true); return }
             liveView.visibility = View.GONE
             vodView.visibility = View.GONE
             highlightView.visibility = View.GONE
@@ -531,26 +531,73 @@ class MainActivity : AppCompatActivity() {
     }
 
     /** Ao abrir: só abre o que já está salvo na TV; o resto espera o botão Baixar. */
+    /**
+     * Ao abrir: mostra na hora o que já está salvo na TV (sem tela de carregamento)
+     * e atualiza os canais por trás, em silêncio.
+     */
     private fun startup() {
         findViewById<TextView>(R.id.brand).text = "GS IPTV  ·  ${Store.listName(this)}"
-        val cached = Kind.values().filter { Store.hasFreshCache(this, it) && !Store.isLoaded(it) }
-        if (cached.isNotEmpty()) loadKinds(cached, force = false) else { showTab(tab); tabViews[tab.ordinal].requestFocus() }
+        val cached = Kind.values().filter { Store.hasCache(this, it) && !Store.isLoaded(it) }
+        if (cached.isEmpty()) { showTab(tab); tabViews[tab.ordinal].requestFocus(); return }
+        loadKinds(cached, force = false, silent = true) {
+            // depois de abrir a cópia salva, atualiza em segundo plano
+            val toRefresh = cached.filter { it == Kind.LIVE || Store.cacheAgeMin(this, it) > 12 * 60 }
+            refreshQuietly(toRefresh)
+        }
+    }
+
+    /** Atualiza as seções por trás, sem aparecer nada na tela; troca os dados no lugar. */
+    private fun refreshQuietly(kinds: List<Kind>) {
+        if (kinds.isEmpty()) return
+        lifecycleScope.launch {
+            val t0 = System.currentTimeMillis()
+            var changed = false
+            for (k in kinds) {
+                try { Store.loadSection(this@MainActivity, k, force = true); changed = true } catch (_: Throwable) { }
+            }
+            Diag.log("Atualização em segundo plano: ${kinds.joinToString { Store.label(it) }} em ${System.currentTimeMillis() - t0}ms")
+            if (changed) applyFreshData()
+        }
+    }
+
+    /** Coloca os dados novos na tela sem tirar o usuário de onde ele está. */
+    private fun applyFreshData() {
+        if (sectionPanel.visibility == View.VISIBLE) { updatePanel(); return }
+        when {
+            tab == Tab.TV -> refreshLiveInPlace()
+            tabViews.any { it.hasFocus() } -> showTab(tab)   // está nas abas: pode redesenhar
+            // dentro de filmes/séries: os dados novos entram na próxima troca de aba
+        }
+    }
+
+    private fun refreshLiveInPlace() {
+        if (!Store.isLoaded(Kind.LIVE)) return
+        val sel = liveCatAdapter.selected
+        val name = liveCats.getOrNull(sel)?.first
+        val focusedRow = (channelsList.focusedChild?.let { channelsList.getChildAdapterPosition(it) } ?: -1)
+        liveCats = Store.liveCategories(this)
+        liveCatAdapter.items = liveCats.map { it.first }
+        val i = liveCats.indexOfFirst { it.first == name }.coerceAtLeast(0)
+        liveCatAdapter.selected = i
+        channelAdapter.favorites = Store.favorites(this)
+        channelAdapter.items = liveCats.getOrNull(i)?.second ?: emptyList()
+        if (focusedRow >= 0) channelsList.focusPosition(focusedRow)
     }
 
     private var loadingNow = false
 
-    private fun loadKinds(kinds: List<Kind>, force: Boolean) {
+    private fun loadKinds(kinds: List<Kind>, force: Boolean, silent: Boolean = false, after: () -> Unit = {}) {
         if (loadingNow) return
         loadingNow = true
         lifecycleScope.launch {
             sectionPanel.visibility = View.GONE
-            loading.visibility = View.VISIBLE
+            if (!silent) loading.visibility = View.VISIBLE
             empty.visibility = View.GONE
             var failed = false
             for (k in kinds) {
                 loadingText.text = "Preparando ${Store.label(k)}…"
                 try {
-                    Store.loadSection(this@MainActivity, k, force) { msg -> runOnUiThread { loadingText.text = msg } }
+                    Store.loadSection(this@MainActivity, k, force, { msg -> if (!silent) runOnUiThread { loadingText.text = msg } }, allowStale = silent)
                 } catch (e: OutOfMemoryError) {
                     failed = true
                     toast("Os ${Store.label(k)} são muitos para a memória desta TV.")
@@ -564,6 +611,7 @@ class MainActivity : AppCompatActivity() {
             loaded = true
             if (failed) showPanel(kinds.first()) else showTab(tab)
             if (sectionPanel.visibility != View.VISIBLE) tabViews[tab.ordinal].requestFocus()
+            after()
         }
     }
 
@@ -571,7 +619,7 @@ class MainActivity : AppCompatActivity() {
     private fun refreshAll() {
         if (tab == Tab.GAMES) { loadGames(force = true); return }
         val open = Kind.values().filter { Store.isLoaded(it) }
-        if (open.isEmpty()) showPanel(null) else loadKinds(open, force = true)
+        if (open.isEmpty()) showPanel(null) else { toast("Atualizando a lista…"); refreshQuietly(open) }
     }
 
     /** Lista ou login novo recebido pelo celular. */
@@ -657,15 +705,7 @@ class MainActivity : AppCompatActivity() {
     override fun onStart() {
         super.onStart()
         ui.post(scheduleCheck)
-        if (loaded && tab == Tab.TV && Store.isLoaded(Kind.LIVE)) {
-            val sel = liveCatAdapter.selected
-            val name = liveCats.getOrNull(sel)?.first
-            liveCats = Store.liveCategories(this)
-            liveCatAdapter.items = liveCats.map { it.first }
-            val i = liveCats.indexOfFirst { it.first == name }.coerceAtLeast(0)
-            liveCatAdapter.selected = i
-            showLiveCategory(i)
-        }
+        if (loaded && tab == Tab.TV) refreshLiveInPlace()
         ui.post(clockTick)
         // Volta a tocar a prévia ao retornar da tela cheia
     }

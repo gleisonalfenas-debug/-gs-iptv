@@ -200,6 +200,13 @@ object Store {
         return f.exists() && System.currentTimeMillis() - f.lastModified() < CACHE_HOURS * 3600_000L
     }
 
+    /** Existe cópia salva desta seção (mesmo antiga)? */
+    fun hasCache(ctx: Context, kind: Kind): Boolean = cacheFile(ctx, kind).let { it.exists() && it.length() > 0 }
+
+    /** Idade da cópia salva, em minutos. */
+    fun cacheAgeMin(ctx: Context, kind: Kind): Long =
+        cacheFile(ctx, kind).let { if (it.exists()) (System.currentTimeMillis() - it.lastModified()) / 60_000 else Long.MAX_VALUE }
+
     /** Apaga tudo (usado quando entra uma lista ou login novo). */
     fun clearAll(ctx: Context) {
         Kind.values().forEach { cacheFile(ctx, it).delete() }
@@ -212,18 +219,23 @@ object Store {
     private val loadMutex = kotlinx.coroutines.sync.Mutex()
 
     /** Uma carga de cada vez (evita duas cargas da mesma parte se atrapalhando). */
-    suspend fun loadSection(ctx: Context, kind: Kind, force: Boolean = false, progress: (String) -> Unit = {}): List<Item> =
+    suspend fun loadSection(
+        ctx: Context, kind: Kind, force: Boolean = false, progress: (String) -> Unit = {}, allowStale: Boolean = false,
+    ): List<Item> =
         loadMutex.withLock {
             if (!force) synchronized(loaded) { loaded[kind] }?.let { return@withLock it }
-            loadSectionLocked(ctx, kind, force, progress)
+            loadSectionLocked(ctx, kind, force, progress, allowStale)
         }
 
-    private suspend fun loadSectionLocked(ctx: Context, kind: Kind, force: Boolean, progress: (String) -> Unit): List<Item> =
+    private suspend fun loadSectionLocked(
+        ctx: Context, kind: Kind, force: Boolean, progress: (String) -> Unit, allowStale: Boolean,
+    ): List<Item> =
         withContext(Dispatchers.IO) {
             if (playlistUrl(ctx) == null) throw IllegalStateException("Nenhuma lista configurada")
             val started = System.currentTimeMillis()
             val cache = cacheFile(ctx, kind)
-            if (force || !hasFreshCache(ctx, kind)) {
+            val useCache = hasFreshCache(ctx, kind) || (allowStale && hasCache(ctx, kind))
+            if (force || !useCache) {
                 try {
                     if (isXtream(ctx)) {
                         val list = Xtream.loadSection(ctx, kind, progress)
@@ -314,10 +326,9 @@ object Store {
     private fun downloadM3uSplit(ctx: Context, progress: (String) -> Unit) {
         val url = playlistUrl(ctx)!!
         progress("Conectando ao servidor da lista…")
-        val conn = Net.connect(url, 30_000)
         var bytes = 0L
         var lastShown = 0L
-        val counting = object : java.io.FilterInputStream(conn.inputStream) {
+        val counting = object : java.io.FilterInputStream(Net.open(url, 30_000)) {
             override fun read(b: ByteArray, off: Int, len: Int): Int {
                 val n = super.read(b, off, len)
                 if (n > 0) {

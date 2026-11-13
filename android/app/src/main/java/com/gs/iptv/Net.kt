@@ -14,8 +14,24 @@ import java.net.URL
 object Net {
     const val USER_AGENT = "GS-IPTV/1.0 (Android TV)"
 
-    /** Abre uma URL seguindo redirecionamentos (inclusive http -> https). */
-    fun open(url: String, timeout: Int = 15_000): InputStream = connect(url, timeout).inputStream
+    /**
+     * Abre uma URL pela conexão rápida compartilhada: download compactado (gzip),
+     * conexões reaproveitadas, DNS em cache e redirecionamentos automáticos.
+     */
+    fun open(url: String, timeout: Int = 15_000): InputStream {
+        val client = Http.client().newBuilder()
+            .readTimeout(timeout.toLong(), java.util.concurrent.TimeUnit.MILLISECONDS)
+            .connectTimeout(minOf(timeout, 10_000).toLong(), java.util.concurrent.TimeUnit.MILLISECONDS)
+            .build()
+        val req = okhttp3.Request.Builder().url(url).header("User-Agent", USER_AGENT).build()
+        val resp = client.newCall(req).execute()
+        if (!resp.isSuccessful) {
+            val code = resp.code
+            resp.close()
+            throw java.io.IOException("Erro HTTP $code")
+        }
+        return resp.body!!.byteStream() // fechar o stream fecha a resposta
+    }
 
     fun connect(url: String, timeout: Int = 15_000): HttpURLConnection {
         var current = url
