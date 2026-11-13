@@ -204,6 +204,7 @@ object Store {
     suspend fun loadSection(ctx: Context, kind: Kind, force: Boolean = false, progress: (String) -> Unit = {}): List<Item> =
         withContext(Dispatchers.IO) {
             if (playlistUrl(ctx) == null) throw IllegalStateException("Nenhuma lista configurada")
+            val started = System.currentTimeMillis()
             val cache = cacheFile(ctx, kind)
             if (force || !hasFreshCache(ctx, kind)) {
                 try {
@@ -224,6 +225,7 @@ object Store {
             synchronized(loaded) { loaded[kind] = list }
             progress("Organizando ${list.size} itens…")
             rebuild()
+            Diag.listLoaded(label(kind) + if (force) " (atualizado)" else "", list.size, System.currentTimeMillis() - started)
             list
         }
 

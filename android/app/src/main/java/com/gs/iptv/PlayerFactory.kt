@@ -46,6 +46,9 @@ class SmartPlay(
 ) {
     private var routes: List<String> = emptyList()
     private var index = 0
+    var current: Item? = null
+        private set
+    val currentRoute: String? get() = routes.getOrNull(index)
 
     init {
         player.addListener(object : Player.Listener {
@@ -57,12 +60,14 @@ class SmartPlay(
                 if (error.errorCode == PlaybackException.ERROR_CODE_BEHIND_LIVE_WINDOW) {
                     player.seekToDefaultPosition(); player.prepare(); return
                 }
-                if (index + 1 < routes.size) { index++; start() } else onFail()
+                if (index + 1 < routes.size) { index++; Diag.log("Trocando rota de \"${current?.name}\""); start() }
+                else { current?.let { Diag.failed(it.name) }; onFail() }
             }
         })
     }
 
     fun play(item: Item) {
+        current = item
         routes = Store.playRoutes(ctx, item)
         index = 0
         start()

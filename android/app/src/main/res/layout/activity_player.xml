@@ -11,15 +11,101 @@
         android:layout_height="match_parent"
         app:show_buffering="when_playing" />
 
-    <TextView
+    <!-- Aviso do canal: nome + velocidade (some depois de 10s) -->
+    <LinearLayout
         android:id="@+id/osd"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
+        android:layout_gravity="top|end"
         android:layout_margin="32dp"
         android:background="@drawable/bg_dark_box"
-        android:paddingHorizontal="18dp"
-        android:paddingVertical="10dp"
-        android:textSize="22sp"
-        android:textStyle="bold"
-        android:visibility="gone" />
+        android:orientation="vertical"
+        android:paddingHorizontal="22dp"
+        android:paddingVertical="14dp"
+        android:visibility="gone">
+
+        <TextView
+            android:id="@+id/osdName"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:maxWidth="560dp"
+            android:maxLines="1"
+            android:ellipsize="end"
+            android:textSize="24sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/osdInfo"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:text="Conectando…"
+            android:textColor="@color/gold"
+            android:textSize="17sp" />
+    </LinearLayout>
+
+    <!-- Lista de canais (OK) e categorias (seta esquerda) -->
+    <LinearLayout
+        android:id="@+id/overlay"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="@drawable/bg_overlay"
+        android:orientation="horizontal"
+        android:paddingVertical="28dp"
+        android:paddingStart="28dp"
+        android:visibility="gone">
+
+        <LinearLayout
+            android:id="@+id/catBox"
+            android:layout_width="250dp"
+            android:layout_height="match_parent"
+            android:layout_marginEnd="10dp"
+            android:orientation="vertical"
+            android:visibility="gone">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="10dp"
+                android:text="Categorias"
+                android:textColor="@color/gold"
+                android:textSize="18sp"
+                android:textStyle="bold" />
+
+            <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/catList"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="420dp"
+            android:layout_height="match_parent"
+            android:orientation="vertical">
+
+            <TextView
+                android:id="@+id/chTitle"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="10dp"
+                android:text="Canais"
+                android:textColor="@color/gold"
+                android:textSize="18sp"
+                android:textStyle="bold" />
+
+            <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/chList"
+                android:layout_width="match_parent"
+                android:layout_height="0dp"
+                android:layout_weight="1" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:text="◀ Categorias  ·  OK assistir  ·  Voltar fecha"
+                android:textColor="@color/pink_text"
+                android:textSize="13sp" />
+        </LinearLayout>
+    </LinearLayout>
 </FrameLayout>

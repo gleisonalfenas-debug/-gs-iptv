@@ -81,6 +81,15 @@ object ListServer {
                     else "{\"ok\":false,\"error\":\"" + msg.replace("\"", "'") + "\"}"
                     respond(out, 200, "application/json; charset=utf-8", json)
                     if (ok) main.post { listener?.invoke() }
+                } else if (path.startsWith("/diagnostico")) {
+                    val rep = Diag.report(app).replace("&", "&amp;").replace("<", "&lt;")
+                    val html = "<!doctype html><html lang=pt-BR><head><meta charset=utf-8><meta name=viewport content='width=device-width,initial-scale=1'>" +
+                        "<title>Diagnóstico GS IPTV</title><style>body{margin:0;font-family:system-ui,sans-serif;background:#1a0306;color:#fff;padding:18px}" +
+                        "pre{white-space:pre-wrap;font-size:13px;background:#000;padding:14px;border-radius:10px}button{width:100%;height:52px;border:0;border-radius:12px;" +
+                        "background:#f0c45c;color:#3a2400;font-size:18px;font-weight:800;margin:10px 0}</style></head><body><h2>Diagnóstico do GS IPTV</h2>" +
+                        "<button onclick=\"navigator.clipboard.writeText(document.getElementById('r').innerText).then(function(){this.textContent='Copiado ✓'}.bind(this))\">Copiar relatório</button>" +
+                        "<pre id=r>$rep</pre></body></html>"
+                    respond(out, 200, "text/html; charset=utf-8", html)
                 } else if (path.startsWith("/favicon")) {
                     respond(out, 404, "text/plain", "")
                 } else {
