@@ -92,6 +92,9 @@ object Store {
     /** Modo simples: fundo liso, listas só com texto, sem animações (mais rápido). */
     fun liteOn(ctx: Context) = prefs(ctx).getBoolean("lite", true)
     fun setLite(ctx: Context, on: Boolean) = prefs(ctx).edit().putBoolean("lite", on).apply()
+    fun autoLastOn(ctx: Context) = prefs(ctx).getBoolean("auto_last", false)
+    fun setAutoLast(ctx: Context, on: Boolean) = prefs(ctx).edit().putBoolean("auto_last", on).apply()
+    fun isKids(i: Item) = i.section == 1
     fun cornerLogoOn(ctx: Context) = prefs(ctx).getBoolean("show_logo", true)
     fun setCornerLogo(ctx: Context, on: Boolean) = prefs(ctx).edit().putBoolean("show_logo", on).apply()
     fun bgLogoOn(ctx: Context) = prefs(ctx).getBoolean("show_bg_logo", true)
@@ -282,8 +285,8 @@ object Store {
                 when (t) {
                     Tab.HIGHLIGHTS, Tab.GAMES, Tab.HOME -> false
                     Tab.TV -> i.kind == Kind.LIVE
-                    Tab.MOVIES -> i.kind == Kind.MOVIE && i.section == 0
-                    Tab.SERIES -> i.kind == Kind.SERIES && i.section == 0
+                    Tab.MOVIES -> i.kind == Kind.MOVIE && i.section != 1
+                    Tab.SERIES -> i.kind == Kind.SERIES && i.section != 1
                     Tab.KIDS -> i.kind != Kind.LIVE && i.section == 1
                     Tab.ANIME -> i.kind != Kind.LIVE && i.section == 2
                 }

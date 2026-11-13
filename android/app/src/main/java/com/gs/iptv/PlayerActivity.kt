@@ -203,7 +203,16 @@ class PlayerActivity : AppCompatActivity() {
         play(index)
     }
 
+    /** Guarda onde parou (filmes e episódios) para o "Continuar assistindo". */
+    private fun saveProgress() {
+        val p = player ?: return
+        val item = queue.getOrNull(index) ?: return
+        if (item.kind == Kind.LIVE) return
+        Watch.save(this, item, p.currentPosition, p.duration.takeIf { it > 0 } ?: 0)
+    }
+
     override fun onStop() {
+        saveProgress()
         super.onStop()
         ui.removeCallbacksAndMessages(null)
         view.player = null
@@ -214,6 +223,7 @@ class PlayerActivity : AppCompatActivity() {
 
     private fun play(i: Int) {
         if (queue.isEmpty()) return
+        saveProgress()
         index = (i + queue.size) % queue.size
         val item = queue[index]
         view.useController = item.kind != Kind.LIVE
@@ -222,6 +232,11 @@ class PlayerActivity : AppCompatActivity() {
         openedInMs = 0
         openStartedAt = System.currentTimeMillis()
         smart?.play(item)
+        // continua de onde parou
+        if (item.kind != Kind.LIVE) Watch.position(this, item.url).takeIf { it > 0 }?.let { pos ->
+            player?.seekTo(pos)
+            Toast.makeText(this, "Continuando de onde você parou", Toast.LENGTH_SHORT).show()
+        }
         if (item.kind == Kind.LIVE) Store.setLastUrl(this, item.url)
         osdName.text = if (item.number > 0) "${item.number}  ${item.name}" else item.name
         osdInfo.text = "Conectando…"

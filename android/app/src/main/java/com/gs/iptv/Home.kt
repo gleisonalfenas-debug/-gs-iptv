@@ -21,12 +21,18 @@ class HomeRow(val title: String, val items: List<Item>, val posters: Boolean)
 
 /** Fileira horizontal: nas pontas o foco para (não pula para outra fileira). */
 class HRow @JvmOverloads constructor(ctx: Context, attrs: AttributeSet? = null) : RecyclerView(ctx, attrs) {
+    var onLeftEdge: (() -> Unit)? = null
+    var onUp: (() -> Unit)? = null
+    var onDown: (() -> Unit)? = null
+
     override fun focusSearch(focused: View, direction: Int): View? {
         val item = findContainingItemView(focused) ?: return super.focusSearch(focused, direction)
         val pos = getChildAdapterPosition(item)
         val count = adapter?.itemCount ?: 0
         if (direction == View.FOCUS_RIGHT && pos == count - 1) return focused
-        if (direction == View.FOCUS_LEFT && pos == 0) return focused
+        if (direction == View.FOCUS_LEFT && pos == 0) { onLeftEdge?.invoke(); return focused }
+        if (direction == View.FOCUS_UP) onUp?.let { it(); return focused }
+        if (direction == View.FOCUS_DOWN) onDown?.let { it(); return focused }
         return super.focusSearch(focused, direction)
     }
 }

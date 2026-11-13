@@ -91,6 +91,38 @@ object Xtream {
         }
     }
 
+    /** Dados completos da série: sinopse, gênero, ano e episódios por temporada. */
+    data class SeriesInfo(val plot: String, val genre: String, val year: String, val cover: String, val seasons: LinkedHashMap<String, List<Item>>)
+
+    fun seriesInfo(ctx: Context, seriesUrl: String, seriesName: String, logo: String): SeriesInfo {
+        val l = Store.xtreamLogin(ctx)
+        val id = seriesUrl.removePrefix(SERIES_PREFIX)
+        val json = JSONObject(Net.getText(api(l, "get_series_info", "&series_id=$id"), 20_000))
+        val info = json.optJSONObject("info")
+        val eps = json.optJSONObject("episodes")
+        val seasons = LinkedHashMap<String, List<Item>>()
+        if (eps != null) {
+            for (season in eps.keys().asSequence().sortedBy { it.toIntOrNull() ?: 0 }) {
+                val arr = eps.optJSONArray(season) ?: continue
+                val list = ArrayList<Item>()
+                for (i in 0 until arr.length()) {
+                    val e = arr.getJSONObject(i)
+                    val num = e.optString("episode_num", "${i + 1}")
+                    val title = e.optString("title", "").ifEmpty { "Episódio $num" }
+                    val ext = e.optString("container_extension", "mp4")
+                    val einfo = e.optJSONObject("info")
+                    val img = einfo?.optString("movie_image").orEmpty().ifEmpty { logo }
+                    val dur = einfo?.optString("duration").orEmpty()
+                    list.add(Item("$num. ${title.substringAfterLast(" - ").ifBlank { title }}", "${l.server}/series/${l.user}/${l.pass}/${e.optString("id")}.$ext",
+                        img, if (dur.isNotEmpty()) "T$season · $dur" else "Temporada $season", Kind.SERIES, 0))
+                }
+                seasons[season] = list
+            }
+        }
+        fun s(k: String) = info?.optString(k).orEmpty().let { if (it == "null") "" else it }
+        return SeriesInfo(s("plot"), s("genre"), (s("releaseDate").ifEmpty { s("release_date") }).take(4), s("cover").ifEmpty { logo }, seasons)
+    }
+
     /** Episódios de uma série, já com o link para tocar. */
     fun episodes(ctx: Context, seriesUrl: String, seriesName: String, logo: String): List<Item> {
         val l = Store.xtreamLogin(ctx)

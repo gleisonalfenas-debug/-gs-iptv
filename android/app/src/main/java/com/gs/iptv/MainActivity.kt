@@ -3,76 +3,91 @@ package com.gs.iptv
 import android.app.AlertDialog
 import android.content.Intent
 import android.graphics.Color
-import android.os.Bundle
+import android.graphics.drawable.GradientDrawable
 import android.os.Build
-import android.provider.Settings
+import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.provider.Settings
 import android.util.TypedValue
 import android.view.Gravity
+import android.view.KeyEvent
 import android.view.View
 import android.view.inputmethod.EditorInfo
 import android.widget.EditText
 import android.widget.ImageView
 import android.widget.LinearLayout
+import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
-import androidx.media3.common.MediaItem
-import androidx.media3.common.PlaybackException
-import androidx.media3.common.Player
 import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.LinearLayoutManager
-import androidx.recyclerview.widget.RecyclerView
 import coil.load
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.text.SimpleDateFormat
+import java.util.Calendar
 import java.util.Date
 import java.util.Locale
 
+/** Páginas da barra lateral. */
+enum class Page(val label: String, val icon: Int) {
+    HOME("Início", R.drawable.ic_tab_home),
+    TV("TV", R.drawable.ic_tab_tv),
+    GAMES("Jogos", R.drawable.ic_tab_games),
+    MOVIES("Filmes", R.drawable.ic_tab_film),
+    SERIES("Séries", R.drawable.ic_tab_series),
+    KIDS("Kids", R.drawable.ic_tab_kids),
+    SEARCH("Buscar", R.drawable.ic_search),
+    ACCOUNT("Conta", R.drawable.ic_user),
+}
+
 class MainActivity : AppCompatActivity() {
 
-    private var tab = Tab.HOME
-    private val tabViews = ArrayList<View>()
+    private var page = Page.HOME
+    private val railItems = HashMap<Page, View>()
+    private var lite = true
+    private var loaded = false
+    private var loadingNow = false
+    private var current: Item? = null
 
-    private lateinit var liveView: View
-    private lateinit var vodView: View
+    private lateinit var title: TextView
+    private lateinit var subtitle: TextView
+    private lateinit var clock: TextView
     private lateinit var empty: TextView
     private lateinit var loading: View
     private lateinit var loadingText: TextView
     private lateinit var sectionPanel: View
-    private lateinit var clock: TextView
-    private lateinit var channelsList: TvList
-    private lateinit var cardFan: CardFan
-    private lateinit var vodSimple: TvList
-    private lateinit var vodSimpleAdapter: ChannelAdapter
-    private var lite = true
-    private lateinit var spiral: SpiralView
-    private lateinit var gamesView: View
-    private lateinit var homeView: View
-    private lateinit var showcase: ShowcaseView
-    private lateinit var storiesRow: HRow
-    private lateinit var bottomRow: HRow
-    private lateinit var gamesList: TvList
-    private lateinit var gameAdapter: GameAdapter
-    private lateinit var highlightView: View
-    private lateinit var liveCatList: TvList
-    private lateinit var vodCatList: TvList
+    private lateinit var pages: Map<Page, View>
 
-    private lateinit var liveCatAdapter: CategoryAdapter
-    private lateinit var vodCatAdapter: CategoryAdapter
-    private lateinit var channelAdapter: ChannelAdapter
-
+    // TV
+    private lateinit var tvCats: TvList
+    private lateinit var tvList: TvList
+    private lateinit var catAdapter: CategoryAdapter
+    private lateinit var liveAdapter: LiveRowAdapter
     private var liveCats: List<Pair<String, List<Item>>> = emptyList()
+
+    // Filmes / séries / busca
+    private lateinit var chips: HRow
+    private lateinit var vodGrid: TvList
+    private lateinit var chipAdapter: ChipAdapter
+    private lateinit var gridAdapter: GridAdapter
     private var vodCats: List<Pair<String, List<Item>>> = emptyList()
 
-    private var current: Item? = null
-    private var loaded = false
+    // Jogos
+    private lateinit var dayChips: HRow
+    private lateinit var dayAdapter: ChipAdapter
+    private lateinit var gamesList: TvList
+    private lateinit var gameAdapter: GameAdapter
+    private val dayOffsets = listOf(-1, 0, 1, 2, 3)
+
+    // Kids
+    private lateinit var kidsGrid: TvList
 
     private val ui = Handler(Looper.getMainLooper())
     private val clockTick = object : Runnable {
@@ -89,195 +104,370 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
+        lite = Store.liteOn(this)
 
-        liveView = findViewById(R.id.liveView)
-        vodView = findViewById(R.id.vodView)
+        title = findViewById(R.id.title)
+        subtitle = findViewById(R.id.subtitle)
+        clock = findViewById(R.id.clock)
         empty = findViewById(R.id.empty)
         loading = findViewById(R.id.loading)
         loadingText = findViewById(R.id.loadingText)
-        clock = findViewById(R.id.clock)
-        channelsList = findViewById(R.id.channels)
-        cardFan = findViewById(R.id.cardFan)
-        lite = Store.liteOn(this)
-        vodSimple = findViewById(R.id.vodSimple)
-        vodSimpleAdapter = ChannelAdapter(
-            onClick = { item, pos ->
-                if (item.url.startsWith(Xtream.SERIES_PREFIX)) openSeries(item) else openFullscreen(vodSimpleAdapter.items, pos)
-            },
-            onLongClick = { _, _ -> },
-        ).apply { showLogos = false }
-        vodSimple.layoutManager = LinearLayoutManager(this)
-        vodSimple.adapter = vodSimpleAdapter
-        vodSimple.itemAnimator = null
-        vodSimple.setHasFixedSize(true)
-        spiral = findViewById(R.id.spiral)
-        gamesView = findViewById(R.id.gamesView)
-        homeView = findViewById(R.id.homeView)
-        showcase = findViewById(R.id.showcase)
-        storiesRow = findViewById(R.id.storiesRow)
-        bottomRow = findViewById(R.id.bottomRow)
-        storiesRow.layoutManager = LinearLayoutManager(this, LinearLayoutManager.HORIZONTAL, false)
-        bottomRow.layoutManager = LinearLayoutManager(this, LinearLayoutManager.HORIZONTAL, false)
-        storiesRow.itemAnimator = null
-        bottomRow.itemAnimator = null
-        val showcaseInfo = findViewById<TextView>(R.id.showcaseInfo)
-        showcase.onChange = { item -> showcaseInfo.text = item?.let { "${it.group}  ·  OK para assistir" } ?: "" }
-        showcase.onPick = { item, pos ->
-            if (item.url.startsWith(Xtream.SERIES_PREFIX)) openSeries(item)
-            else { if (item.kind == Kind.LIVE) current = item; openFullscreen(showcase.items, pos) }
-        }
-        showcase.onUp = { (homeView as android.widget.ScrollView).smoothScrollTo(0, 0); tabViews[tab.ordinal].requestFocus() }
-        showcase.onDown = { storiesRow.post { storiesRow.findViewHolderForAdapterPosition(0)?.itemView?.requestFocus() } }
-        gamesList = findViewById(R.id.gamesList)
-        gameAdapter = GameAdapter { g -> onGameClick(g) }
-        gamesList.layoutManager = LinearLayoutManager(this)
-        gamesList.adapter = gameAdapter
-        gamesList.itemAnimator = null
-        gamesList.onLeft = {}
-        gamesList.onRight = {}
-        highlightView = findViewById(R.id.highlightView)
-        findViewById<TextView>(R.id.brand).text = Store.listName(this).let { "GS IPTV  ·  $it" }
+        sectionPanel = findViewById(R.id.sectionPanel)
+        findViewById<TextView>(R.id.version).text = "v${BuildConfig.VERSION_NAME}"
+        findViewById<GlobeView>(R.id.railGlobe).apply { compact = true; visibility = if (lite) View.GONE else View.VISIBLE }
+        pages = mapOf(
+            Page.HOME to findViewById(R.id.pageHome), Page.TV to findViewById(R.id.pageTv),
+            Page.MOVIES to findViewById(R.id.pageVod), Page.SERIES to findViewById(R.id.pageVod),
+            Page.SEARCH to findViewById(R.id.pageVod), Page.GAMES to findViewById(R.id.pageGames),
+            Page.KIDS to findViewById(R.id.pageKids), Page.ACCOUNT to findViewById(R.id.pageAccount),
+        )
 
-        buildTabs()
-        setupLists()
-
-        findViewById<View>(R.id.btnSearch).setOnClickListener { openSearch() }
-        findViewById<View>(R.id.btnSend).setOnClickListener { openSendList() }
-        findViewById<View>(R.id.btnRefresh).setOnClickListener { refreshAll() }
-        findViewById<View>(R.id.btnSettings).setOnClickListener { openSettings() }
-        findViewById<View>(R.id.btnAccount).setOnClickListener { openAccount() }
+        buildRail()
+        setupTv()
+        setupVod()
+        setupGames()
+        setupKids()
+        setupHome()
+        setupPanel()
 
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
-                if (tabViews.none { it.hasFocus() }) {
-                    tabViews[tab.ordinal].requestFocus()
-                } else {
-                    confirmExit()
-                }
+                if (railItems.values.none { it.hasFocus() }) focusRail() else confirmExit()
             }
         })
 
         ListServer.start(this)
         GsApp.takeCrash(application)?.let { crash ->
-            AlertDialog.Builder(this)
-                .setTitle("O app fechou da última vez")
+            AlertDialog.Builder(this).setTitle("O app fechou da última vez")
                 .setMessage("Tire uma foto desta tela e envie para o suporte:\n\n" + crash.lines().take(14).joinToString("\n"))
-                .setPositiveButton("OK", null)
-                .show()
+                .setPositiveButton("OK", null).show()
         }
-        findViewById<TextView>(R.id.version).text = "v${BuildConfig.VERSION_NAME}"
         Store.justUpdated(this)?.let { v ->
-            AlertDialog.Builder(this)
-                .setTitle("GS IPTV atualizado")
-                .setMessage("Agora você está na versão $v.")
-                .setPositiveButton("OK", null)
-                .show()
+            AlertDialog.Builder(this).setTitle("GS IPTV atualizado").setMessage("Agora você está na versão $v.")
+                .setPositiveButton("OK", null).show()
         }
-        setupPanel()
-        applyLite()
-        Http.warm(Store.playlistUrl(this)) // já resolve o endereço do servidor
+        Http.warm(Store.playlistUrl(this))
         if (!Store.hasList(this)) openSendList() else startup()
     }
 
-    // ---------------- Início: vitrine ----------------
-    private fun showHome() {
-        val live = Store.tab(Tab.TV).items
-        val movies = Store.tab(Tab.HIGHLIGHTS).items
-        val series = Store.tab(Tab.SERIES).items
-        if (live.isEmpty() && movies.isEmpty() && series.isEmpty()) {
-            homeView.visibility = View.GONE
-            showPanel(Kind.LIVE)
+    // ================= Barra lateral =================
+    private fun buildRail() {
+        val rail = findViewById<LinearLayout>(R.id.rail)
+        Page.values().forEach { p ->
+            val item = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                gravity = Gravity.CENTER_HORIZONTAL
+                setBackgroundResource(R.drawable.bg_rail_item)
+                setPadding(0, dp(9), 0, dp(9))
+                isFocusable = true
+            }
+            val icon = ImageView(this).apply { setImageResource(p.icon) }
+            val label = TextView(this).apply {
+                text = p.label
+                setTextSize(TypedValue.COMPLEX_UNIT_SP, 11f)
+                setTypeface(null, android.graphics.Typeface.BOLD)
+                gravity = Gravity.CENTER
+            }
+            item.addView(icon, LinearLayout.LayoutParams(dp(24), dp(24)))
+            item.addView(label)
+            fun tint() {
+                val c = when { item.isFocused -> Color.parseColor("#111318"); item.isActivated -> Color.WHITE; else -> Color.parseColor("#8B8F9C") }
+                icon.setColorFilter(c); label.setTextColor(c)
+            }
+            item.tag = Runnable { tint() }
+            item.setOnFocusChangeListener { _, has ->
+                tint()
+                if (has && p != page && p != Page.SEARCH) showPage(p)
+            }
+            item.setOnClickListener { if (p == Page.SEARCH) openSearch() else { showPage(p); focusContent() } }
+            item.setOnKeyListener { _, code, ev ->
+                if (ev.action == KeyEvent.ACTION_DOWN && code == KeyEvent.KEYCODE_DPAD_RIGHT) { focusContent(); true } else false
+            }
+            rail.addView(item, LinearLayout.LayoutParams(dp(68), LinearLayout.LayoutParams.WRAP_CONTENT).apply { bottomMargin = dp(4) })
+            railItems[p] = item
+            tint()
+        }
+    }
+
+    private fun markRail() {
+        railItems.forEach { (p, v) -> v.isActivated = p == page; (v.tag as? Runnable)?.run() }
+    }
+
+    private fun focusRail() { railItems[page]?.requestFocus() }
+    private val toRail: () -> Unit = { focusRail() }
+
+    // ================= Páginas =================
+    private fun kindsFor(p: Page): List<Kind> = when (p) {
+        Page.TV -> listOf(Kind.LIVE)
+        Page.MOVIES -> listOf(Kind.MOVIE)
+        Page.SERIES -> listOf(Kind.SERIES)
+        Page.KIDS -> listOf(Kind.MOVIE, Kind.SERIES)
+        else -> emptyList()
+    }
+
+    private fun showPage(p: Page) {
+        page = p
+        markRail()
+        pages.values.forEach { it.visibility = View.GONE }
+        empty.visibility = View.GONE
+        sectionPanel.visibility = View.GONE
+
+        val missing = kindsFor(p).filterNot { Store.isLoaded(it) }
+        if (missing.isNotEmpty()) {
+            setHeader(p.label, "")
+            if (loadingNow) return
+            if (missing.all { Store.hasCache(this, it) }) { loadKinds(missing, force = false, silent = true); return }
+            showPanel(missing.first())
             return
         }
-        sectionPanel.visibility = View.GONE
-        empty.visibility = View.GONE
-        homeView.visibility = View.VISIBLE
+        pages[p]?.visibility = View.VISIBLE
+        when (p) {
+            Page.HOME -> showHome()
+            Page.TV -> showTv()
+            Page.MOVIES -> showVod(Tab.MOVIES, "Filmes")
+            Page.SERIES -> showVod(Tab.SERIES, "Séries")
+            Page.GAMES -> showGames()
+            Page.KIDS -> showKids()
+            Page.ACCOUNT -> showAccount()
+            Page.SEARCH -> {}
+        }
+    }
 
-        // Vitrine: lançamentos; se não houver filmes baixados, os canais
-        val featured = (if (movies.isNotEmpty()) movies else live).take(30)
-        if (showcase.items !== featured) showcase.showItems(featured)
+    private fun setHeader(t: String, s: String) { title.text = t; subtitle.text = s }
 
-        // Canais em bolinhas: último assistido e favoritos primeiro
+    /** Da barra lateral para dentro da página (seta direita). */
+    private fun focusContent() {
+        when {
+            sectionPanel.visibility == View.VISIBLE -> showPanel(kindsFor(page).firstOrNull { !Store.isLoaded(it) })
+            page == Page.HOME -> findViewById<View>(R.id.hero).requestFocus()
+            page == Page.TV -> tvList.focusPosition(0)
+            page == Page.MOVIES || page == Page.SERIES || page == Page.SEARCH -> vodGrid.focusPosition(0)
+            page == Page.GAMES -> gamesList.focusPosition(0)
+            page == Page.KIDS -> kidsGrid.focusPosition(0)
+            page == Page.ACCOUNT -> findViewById<LinearLayout>(R.id.accPrefs).getChildAt(0)?.requestFocus()
+        }
+    }
+
+    // ================= Início =================
+    private var heroItem: Item? = null
+
+    private fun setupHome() {
+        val hero = findViewById<View>(R.id.hero)
+        hero.setOnClickListener { heroItem?.let { openItem(listOf(it), 0) } }
+        hero.setOnKeyListener { _, code, ev ->
+            if (ev.action == KeyEvent.ACTION_DOWN && code == KeyEvent.KEYCODE_DPAD_LEFT) { focusRail(); true } else false
+        }
+        listOf(R.id.contRow, R.id.favRow, R.id.newRow).forEach { id ->
+            findViewById<HRow>(id).apply {
+                layoutManager = LinearLayoutManager(this@MainActivity, LinearLayoutManager.HORIZONTAL, false)
+                itemAnimator = null
+                onLeftEdge = toRail
+            }
+        }
+    }
+
+    private fun showHome() {
+        val hour = Calendar.getInstance().get(Calendar.HOUR_OF_DAY)
+        setHeader(when (hour) { in 5..11 -> "Bom dia!"; in 12..17 -> "Boa tarde!"; else -> "Boa noite!" }, "O que vamos assistir?")
+        val live = Store.tab(Tab.TV).items
+        val movies = Store.tab(Tab.HIGHLIGHTS).items
+        if (live.isEmpty() && movies.isEmpty() && Store.tab(Tab.SERIES).items.isEmpty()) {
+            pages[Page.HOME]?.visibility = View.GONE
+            showPanel(Kind.LIVE); return
+        }
+        // destaque
+        val featured = movies.firstOrNull() ?: live.firstOrNull { it.url == Store.lastUrl(this) } ?: live.firstOrNull()
+        heroItem = featured
+        findViewById<TextView>(R.id.heroKind).text = when (featured?.kind) { Kind.MOVIE -> "LANÇAMENTO"; Kind.SERIES -> "SÉRIE"; else -> "AO VIVO" }
+        findViewById<TextView>(R.id.heroTitle).text = featured?.name ?: ""
+        findViewById<TextView>(R.id.heroMeta).text = featured?.group ?: ""
+        val heroImg = findViewById<ImageView>(R.id.heroImg)
+        if (!lite && featured != null && featured.logo.isNotEmpty()) heroImg.load(featured.logo) { size(900, 500) } else heroImg.setImageDrawable(null)
+
+        // continuar assistindo
+        val cont = Watch.list(this)
+        findViewById<View>(R.id.contTitle).visibility = if (cont.isEmpty()) View.GONE else View.VISIBLE
+        findViewById<HRow>(R.id.contRow).apply {
+            visibility = if (cont.isEmpty()) View.GONE else View.VISIBLE
+            adapter = ContinueAdapter(cont, !lite) { i -> openItem(cont.map { it.item }, i) }
+        }
+        // canais favoritos (ou os primeiros canais)
         val favs = Store.favorites(this)
-        val last = Store.lastUrl(this)
-        val chans = (live.filter { it.url == last } + live.filter { favs.contains(it.url) } + live).distinctBy { it.url }.take(40)
-        val chanClick: (Int) -> Unit = { i -> current = chans[i]; openFullscreen(chans, i) }
-        storiesRow.adapter = StoryAdapter(chans, lite, { item, bubble, has -> onBubbleFocus(item, bubble, has) }, chanClick)
-
-        // Fileira de baixo: séries para maratonar (ou filmes, ou canais)
-        val (title, list) = when {
-            series.isNotEmpty() -> "Séries para maratonar" to series.take(30)
-            movies.size > 30 -> "Mais filmes" to movies.drop(30).take(30)
-            else -> "Canais ao vivo" to live.drop(40).take(30)
-        }
-        findViewById<TextView>(R.id.bottomTitle).text = title
-        val row = HomeRow(title, list, list.firstOrNull()?.kind != Kind.LIVE)
-        bottomRow.adapter = TileAdapter(row, lite, {}) { i ->
-            val item = list[i]
-            if (item.url.startsWith(Xtream.SERIES_PREFIX)) openSeries(item) else openFullscreen(list, i)
+        val favList = live.filter { favs.contains(it.url) }.ifEmpty { live.take(20) }
+        findViewById<TextView>(R.id.favTitle).text = if (live.any { favs.contains(it.url) }) "Canais favoritos" else "Canais"
+        findViewById<HRow>(R.id.favRow).adapter = BigTileAdapter(favList, !lite, false) { i -> openItem(favList, i) }
+        // lançamentos
+        val news = movies.drop(1).take(30)
+        findViewById<View>(R.id.newTitle).visibility = if (news.isEmpty()) View.GONE else View.VISIBLE
+        findViewById<HRow>(R.id.newRow).apply {
+            visibility = if (news.isEmpty()) View.GONE else View.VISIBLE
+            adapter = TileAdapter(HomeRow("Lançamentos", news, true), lite, {}) { i -> openItem(news, i) }
         }
     }
 
-    // ---------------- Prévia ao vivo dentro da bolinha ----------------
-    private var bubblePlayer: androidx.media3.exoplayer.ExoPlayer? = null
-    private var bubbleTexture: android.view.TextureView? = null
-    private var bubbleStart: Runnable? = null
-
-    /** Parou o foco numa bolinha: depois de ~1s mostra o canal ao vivo dentro dela (sem som). */
-    private fun onBubbleFocus(item: Item, bubble: android.widget.FrameLayout, has: Boolean) {
-        bubbleStart?.let { ui.removeCallbacks(it) }
-        if (!has) { stopBubblePreview(); return }
-        val r = Runnable { startBubblePreview(item, bubble) }
-        bubbleStart = r
-        ui.postDelayed(r, 1_100)
+    // ================= TV ao vivo =================
+    private fun setupTv() {
+        tvCats = findViewById(R.id.tvCats)
+        tvList = findViewById(R.id.tvList)
+        catAdapter = CategoryAdapter { i -> showLiveCategory(i) }
+        liveAdapter = LiveRowAdapter(this,
+            onFocus = { item -> showInfo(item) },
+            onClick = { i -> current = liveAdapter.items[i]; openFullscreen(liveAdapter.items, i) },
+            onLong = { item ->
+                val added = Store.toggleFavorite(this, item.url)
+                liveAdapter.favorites = Store.favorites(this)
+                liveAdapter.notifyItemRangeChanged(0, liveAdapter.itemCount)
+                toast(if (added) "Adicionado aos favoritos" else "Removido dos favoritos")
+            })
+        tvCats.layoutManager = LinearLayoutManager(this); tvCats.adapter = catAdapter; tvCats.itemAnimator = null
+        tvList.layoutManager = LinearLayoutManager(this); tvList.adapter = liveAdapter; tvList.itemAnimator = null
+        tvCats.onLeft = toRail; tvCats.onUp = {}; tvCats.onRight = { tvList.focusPosition(0) }
+        tvList.onLeft = { tvCats.focusPosition(catAdapter.selected) }; tvList.onUp = {}; tvList.onRight = {}
     }
 
-    private fun startBubblePreview(item: Item, bubble: android.widget.FrameLayout) {
-        stopBubblePreview()
-        val p = bubblePlayer ?: PlayerFactory.create(this, preview = true).also { it.volume = 0f; bubblePlayer = it }
-        val d = resources.displayMetrics.density
-        // mais largo que o círculo: o vídeo 16:9 fica recortado no meio, sem esticar
-        val tv = android.view.TextureView(this)
-        bubble.addView(tv, android.widget.FrameLayout.LayoutParams((121 * d).toInt(), (68 * d).toInt(), android.view.Gravity.CENTER))
-        bubbleTexture = tv
-        p.setVideoTextureView(tv)
-        val url = Store.playRoutes(this, item).first()
-        p.setMediaItem(androidx.media3.common.MediaItem.fromUri(url))
-        p.prepare()
-        p.playWhenReady = true
+    private fun showTv() {
+        liveCats = Store.liveCategories(this)
+        catAdapter.items = liveCats.map { it.first }
+        val start = liveCats.indexOfFirst { it.first == "Todos" }.coerceAtLeast(0)
+        catAdapter.selected = start
+        showLiveCategory(start)
     }
 
-    private fun stopBubblePreview() {
-        bubbleStart?.let { ui.removeCallbacks(it) }
-        bubblePlayer?.let { it.stop(); it.clearVideoSurface() }
-        bubbleTexture?.let { (it.parent as? android.view.ViewGroup)?.removeView(it) }
-        bubbleTexture = null
+    private fun showLiveCategory(i: Int) {
+        val cat = liveCats.getOrNull(i) ?: return
+        setHeader("TV ao vivo", "${cat.first} · ${cat.second.size} canais")
+        liveAdapter.showLogos = !lite
+        liveAdapter.favorites = Store.favorites(this)
+        liveAdapter.items = cat.second
+        tvList.scrollToPosition(0)
+        cat.second.firstOrNull()?.let { showInfo(it) }
     }
 
-    private fun releaseBubblePlayer() {
-        stopBubblePreview()
-        bubblePlayer?.release()
-        bubblePlayer = null
+    private fun showInfo(item: Item) {
+        val fmt = SimpleDateFormat("HH:mm", Locale.getDefault())
+        findViewById<TextView>(R.id.infoName).text = item.name
+        findViewById<TextView>(R.id.infoInitials).apply {
+            text = initialsOf(item.name)
+            (parent as View).background = GradientDrawable().apply { cornerRadius = dp(20).toFloat(); setColor(colorOf(item.name)) }
+        }
+        val logo = findViewById<ImageView>(R.id.infoLogo)
+        if (!lite && item.logo.isNotEmpty()) { logo.visibility = View.VISIBLE; logo.load(item.logo) { size(200, 200) } } else { logo.visibility = View.GONE }
+        fun fill(progs: List<Prog>?) {
+            val cur = Epg.current(progs); val nxt = Epg.next(progs)
+            findViewById<TextView>(R.id.infoProg).text = cur?.title ?: item.group
+            findViewById<TextView>(R.id.infoTime).text = cur?.let {
+                val left = ((it.end - System.currentTimeMillis()) / 60_000).coerceAtLeast(0)
+                "${fmt.format(Date(it.start))} – ${fmt.format(Date(it.end))} · termina em $left min"
+            } ?: if (Store.isXtream(this)) "Sem programação disponível" else ""
+            findViewById<TextView>(R.id.infoNext).text = nxt?.let { "Depois: ${fmt.format(Date(it.start))}  ${it.title}" } ?: ""
+        }
+        fill(Epg.cached(item))
+        Epg.request(this, item) { progs -> if (liveAdapter.items.contains(item)) fill(progs) }
     }
 
-    private fun focusFirstTile() {
-        (homeView as android.widget.ScrollView).scrollTo(0, 0)
-        showcase.requestFocus()
+    // ================= Filmes / Séries / Busca =================
+    private fun setupVod() {
+        chips = findViewById(R.id.chips)
+        vodGrid = findViewById(R.id.vodGrid)
+        chipAdapter = ChipAdapter { i -> showVodCategory(i) }
+        gridAdapter = GridAdapter({ !lite }) { i -> openItem(gridAdapter.items, i) }
+        chips.layoutManager = LinearLayoutManager(this, LinearLayoutManager.HORIZONTAL, false)
+        chips.adapter = chipAdapter; chips.itemAnimator = null
+        chips.onLeftEdge = toRail
+        chips.onDown = { vodGrid.focusPosition(0) }
+        vodGrid.layoutManager = GridLayoutManager(this, 5)
+        vodGrid.adapter = gridAdapter; vodGrid.itemAnimator = null
+        vodGrid.onLeft = toRail
+        vodGrid.onUp = { chips.findViewHolderForAdapterPosition(chipAdapter.selected)?.itemView?.requestFocus() ?: chips.requestFocus() }
+        vodGrid.onRight = {}
     }
 
-    // ---------------- Jogos do dia ----------------
-    private fun loadGames(force: Boolean = false) {
-        findViewById<TextView>(R.id.gamesDate).text =
-            SimpleDateFormat("EEEE, dd/MM", Locale("pt", "BR")).format(Date())
+    private fun showVod(t: Tab, name: String) {
+        val data = Store.tab(t)
+        vodCats = listOf("Todos" to data.items) + data.groups
+        // "Lançamentos" primeiro nos filmes
+        if (t == Tab.MOVIES) Store.tab(Tab.HIGHLIGHTS).items.takeIf { it.isNotEmpty() }?.let { vodCats = listOf("Lançamentos" to it) + vodCats }
+        chipAdapter.items = vodCats.map { it.first }
+        setHeader(name, vodCats.firstOrNull()?.first ?: "")
+        showVodCategory(0)
+        empty.visibility = if (data.items.isEmpty()) View.VISIBLE else View.GONE
+        empty.text = "Sua lista não tem conteúdo em $name."
+    }
+
+    private fun showVodCategory(i: Int) {
+        val c = vodCats.getOrNull(i) ?: return
+        subtitle.text = "${c.first} · ${c.second.size}"
+        gridAdapter.items = c.second
+        vodGrid.scrollToPosition(0)
+    }
+
+    private fun openSearch() {
+        val input = EditText(this).apply { hint = "Canal, filme ou série"; setSingleLine(); imeOptions = EditorInfo.IME_ACTION_SEARCH; setTextColor(Color.BLACK) }
+        val d = AlertDialog.Builder(this).setTitle("Buscar").setView(input)
+            .setPositiveButton("Buscar") { _, _ -> runSearch(input.text.toString()) }
+            .setNegativeButton("Cancelar", null).create()
+        input.setOnEditorActionListener { _, _, _ -> runSearch(input.text.toString()); d.dismiss(); true }
+        d.show()
+    }
+
+    private fun runSearch(q: String) {
+        if (q.isBlank()) return
+        lifecycleScope.launch {
+            val results = withContext(Dispatchers.Default) {
+                val n = Store.norm(q)
+                Store.items.filter { Store.norm(it.name).contains(n) }.take(300)
+            }
+            if (results.isEmpty()) { toast("Nada encontrado para \"$q\""); return@launch }
+            page = Page.SEARCH; markRail()
+            pages.values.forEach { it.visibility = View.GONE }
+            pages[Page.SEARCH]?.visibility = View.VISIBLE
+            vodCats = listOf("Resultados" to results)
+            chipAdapter.items = listOf("Resultados")
+            setHeader("Busca: $q", "")
+            showVodCategory(0)
+            vodGrid.post { vodGrid.focusPosition(0) }
+        }
+    }
+
+    // ================= Jogos =================
+    private fun setupGames() {
+        dayChips = findViewById(R.id.dayChips)
+        gamesList = findViewById(R.id.gamesList)
+        dayAdapter = ChipAdapter { i -> loadGames(dayOffsets[i]) }
+        gameAdapter = GameAdapter { g -> onGameClick(g) }
+        dayChips.layoutManager = LinearLayoutManager(this, LinearLayoutManager.HORIZONTAL, false)
+        dayChips.adapter = dayAdapter; dayChips.itemAnimator = null
+        dayChips.onLeftEdge = toRail
+        dayChips.onDown = { gamesList.focusPosition(0) }
+        gamesList.layoutManager = LinearLayoutManager(this); gamesList.adapter = gameAdapter; gamesList.itemAnimator = null
+        gamesList.onLeft = toRail; gamesList.onRight = {}
+        gamesList.onUp = { dayChips.findViewHolderForAdapterPosition(dayAdapter.selected)?.itemView?.requestFocus() }
+        val wd = SimpleDateFormat("EEEE", Locale("pt", "BR"))
+        dayAdapter.items = dayOffsets.map { o ->
+            when (o) { -1 -> "Ontem"; 0 -> "Hoje"; 1 -> "Amanhã"
+                else -> wd.format(Calendar.getInstance().apply { add(Calendar.DAY_OF_YEAR, o) }.time).replaceFirstChar { it.uppercase() } }
+        }
+        dayAdapter.select(1)
+    }
+
+    private var gamesDay = 0
+
+    private fun showGames() {
+        setHeader("Jogos", "Futebol")
+        loadGames(gamesDay)
+    }
+
+    private fun loadGames(offset: Int, force: Boolean = false) {
+        gamesDay = offset
         gameAdapter.scheduled = Scheduler.all(this).map { it.id }.toSet()
         lifecycleScope.launch {
-            if (gameAdapter.items.isEmpty()) { loading.visibility = View.VISIBLE; loadingText.text = "Buscando jogos de hoje…" }
-            val games = try { Games.today(force) } catch (e: Exception) { emptyList() }
+            if (gameAdapter.items.isEmpty()) { loading.visibility = View.VISIBLE; loadingText.text = "Buscando jogos…" }
+            val games = try { Games.day(offset, force) } catch (_: Exception) { emptyList() }
             loading.visibility = View.GONE
-            if (tab != Tab.GAMES) return@launch
+            if (page != Page.GAMES) return@launch
             gameAdapter.items = games
             empty.visibility = if (games.isEmpty()) View.VISIBLE else View.GONE
-            empty.text = "Nenhum jogo encontrado para hoje.\nVerifique a internet e tente o botão de atualizar."
+            empty.text = "Nenhum jogo encontrado para este dia."
         }
     }
 
@@ -286,463 +476,219 @@ class MainActivity : AppCompatActivity() {
         val fmt = SimpleDateFormat("HH:mm", Locale.getDefault())
         val upcoming = g.startMs > System.currentTimeMillis()
         val options = ArrayList<Pair<String, () -> Unit>>()
-        options.add("▶ Assistir agora" to { pickChannel(g) { ch -> current = ch; openFullscreen(listOf(ch), 0) } })
-        if (upcoming && sched == null) {
-            options.add("⏰ Agendar (abre 5 min antes, às ${fmt.format(Date(g.startMs - Scheduler.EARLY_MS))})" to {
-                pickChannel(g) { ch -> scheduleGame(g, ch) }
-            })
-        }
-        if (sched != null) {
-            options.add("✖ Cancelar agendamento (${sched.channelName})" to {
-                Scheduler.remove(this, g.id); toast("Agendamento cancelado"); loadGames()
-            })
-        }
-        val subtitle = if (g.startMs > 0) "${g.league} · ${fmt.format(Date(g.startMs))}" else g.league
-        AlertDialog.Builder(this)
-            .setTitle("${g.title}\n$subtitle")
+        options.add("Assistir agora" to { pickChannel(g) { ch -> current = ch; openFullscreen(listOf(ch), 0) } })
+        if (upcoming && sched == null) options.add("Agendar (abre às ${fmt.format(Date(g.startMs - Scheduler.EARLY_MS))})" to { pickChannel(g) { ch -> scheduleGame(g, ch) } })
+        if (sched != null) options.add("Cancelar agendamento (${sched.channelName})" to { Scheduler.remove(this, g.id); toast("Agendamento cancelado"); loadGames(gamesDay) })
+        AlertDialog.Builder(this).setTitle("${g.title}\n${g.league}${if (g.startMs > 0) " · " + fmt.format(Date(g.startMs)) else ""}")
             .setItems(options.map { it.first }.toTypedArray()) { _, i -> options[i].second() }
-            .setNegativeButton("Voltar", null)
-            .show()
+            .setNegativeButton("Voltar", null).show()
     }
 
-    /** Escolhe em qual canal assistir o jogo (mostra os canais de esporte da lista). */
     private fun pickChannel(g: Game, then: (Item) -> Unit) {
-        if (!Store.isLoaded(Kind.LIVE)) {
-            toast("Baixe os canais ao vivo primeiro")
-            tab = Tab.TV; showTab(Tab.TV); return
-        }
+        if (!Store.isLoaded(Kind.LIVE)) { toast("Baixe os canais ao vivo primeiro"); showPage(Page.TV); return }
         val chans = Games.sportsChannels()
         if (chans.isEmpty()) { toast("Nenhum canal encontrado na sua lista"); return }
-        AlertDialog.Builder(this)
-            .setTitle("Em qual canal passa ${g.title}?")
+        AlertDialog.Builder(this).setTitle("Em qual canal passa ${g.title}?")
             .setItems(chans.map { if (it.number > 0) "${it.number}  ${it.name}" else it.name }.toTypedArray()) { _, i -> then(chans[i]) }
-            .setNegativeButton("Voltar", null)
-            .show()
+            .setNegativeButton("Voltar", null).show()
     }
 
     private fun scheduleGame(g: Game, ch: Item) {
         Scheduler.add(this, Schedule(g.id, g.title, ch.name, ch.url, g.startMs))
-        val fmt = SimpleDateFormat("HH:mm", Locale.getDefault())
-        toast("Agendado! ${ch.name} abre às ${fmt.format(Date(g.startMs - Scheduler.EARLY_MS))}")
-        loadGames()
+        toast("Agendado! ${ch.name} abre às ${SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(g.startMs - Scheduler.EARLY_MS))}")
+        loadGames(gamesDay)
         askOverlayPermission()
     }
 
-    /** Para abrir o canal sozinho com o app fechado, o Android pede "Sobrepor a outros apps". */
     private fun askOverlayPermission() {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M || Settings.canDrawOverlays(this)) return
-        AlertDialog.Builder(this)
-            .setTitle("Abrir sozinho na hora do jogo")
-            .setMessage("Com o GS IPTV aberto, o canal abre na hora certa.\n\nPara abrir mesmo com o app fechado, permita \"Sobrepor a outros apps\" para o GS IPTV.")
+        AlertDialog.Builder(this).setTitle("Abrir sozinho na hora do jogo")
+            .setMessage("Com o GS IPTV aberto, o canal abre na hora certa.\n\nPara abrir mesmo com o app fechado, permita \"Sobrepor a outros apps\".")
             .setPositiveButton("Permitir") { _, _ ->
-                try {
-                    startActivity(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, android.net.Uri.parse("package:$packageName")))
-                } catch (e: Exception) { toast("Esta TV não tem essa opção. Deixe o app aberto na hora do jogo.") }
+                try { startActivity(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, android.net.Uri.parse("package:$packageName"))) }
+                catch (e: Exception) { toast("Esta TV não tem essa opção. Deixe o app aberto na hora do jogo.") }
             }
-            .setNegativeButton("Agora não", null)
-            .show()
+            .setNegativeButton("Agora não", null).show()
     }
 
     private val scheduleCheck = object : Runnable {
         override fun run() {
-            Scheduler.due(this@MainActivity)?.let { s ->
-                toast("Abrindo ${s.channelName} para ${s.title}")
-                Scheduler.open(this@MainActivity, s)
-            }
+            Scheduler.due(this@MainActivity)?.let { s -> toast("Abrindo ${s.channelName} para ${s.title}"); Scheduler.open(this@MainActivity, s) }
             ui.postDelayed(this, 20_000)
         }
     }
 
-    // ---------------- Minha conta ----------------
-    private fun openAccount() {
+    // ================= Kids =================
+    private fun setupKids() {
+        kidsGrid = findViewById(R.id.kidsGrid)
+        kidsGrid.layoutManager = GridLayoutManager(this, 3)
+        kidsGrid.itemAnimator = null
+        kidsGrid.onLeft = toRail; kidsGrid.onUp = {}; kidsGrid.onRight = {}
+    }
+
+    private fun showKids() {
+        setHeader("Kids", "Diversão para os pequenos")
+        val liveKids = Store.tab(Tab.TV).items.filter { Store.isKids(it) }
+        val list = (liveKids + Store.tab(Tab.KIDS).items).take(300)
+        kidsGrid.adapter = BigTileAdapter(list, !lite, true) { i -> openItem(list, i) }
+        empty.visibility = if (list.isEmpty()) View.VISIBLE else View.GONE
+        empty.text = "Sua lista não tem conteúdo infantil."
+    }
+
+    // ================= Conta =================
+    private fun showAccount() {
+        setHeader("Minha conta", "")
+        val info = findViewById<LinearLayout>(R.id.accInfo)
+        val prefs = findViewById<LinearLayout>(R.id.accPrefs)
+        info.removeAllViews(); prefs.removeAllViews()
+
+        // dados da conta
+        val header = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
+        val avatar = TextView(this).apply {
+            text = Store.listName(this@MainActivity).take(1).uppercase(); gravity = Gravity.CENTER
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 26f); setTypeface(null, android.graphics.Typeface.BOLD)
+            background = GradientDrawable().apply { shape = GradientDrawable.OVAL; setColor(Color.parseColor("#E3162A")) }
+        }
+        val who = TextView(this).apply { text = Store.listName(this@MainActivity); setTextSize(TypedValue.COMPLEX_UNIT_SP, 22f); setTypeface(null, android.graphics.Typeface.BOLD); setPadding(dp(16), 0, 0, 0) }
+        header.addView(avatar, LinearLayout.LayoutParams(dp(64), dp(64))); header.addView(who)
+        info.addView(header, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply { bottomMargin = dp(10) })
+        val rowsBox = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        info.addView(rowsBox)
+        fun infoRow(k: String, v: String) {
+            val r = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; setPadding(0, dp(12), 0, dp(12)) }
+            r.addView(TextView(this).apply { text = k; setTextColor(Color.parseColor("#8B8F9C")); setTextSize(TypedValue.COMPLEX_UNIT_SP, 15f) }, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
+            r.addView(TextView(this).apply { text = v; setTextSize(TypedValue.COMPLEX_UNIT_SP, 15f); setTypeface(null, android.graphics.Typeface.BOLD) })
+            rowsBox.addView(r)
+            rowsBox.addView(View(this).apply { setBackgroundColor(Color.parseColor("#262B36")) }, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 1))
+        }
+        infoRow("Versão do app", BuildConfig.VERSION_NAME)
         lifecycleScope.launch {
-            loading.visibility = View.VISIBLE
-            loadingText.text = "Lendo seus dados…"
             val rows = withContext(Dispatchers.IO) {
-                try {
-                    if (Store.isXtream(this@MainActivity)) Xtream.accountInfo(this@MainActivity)
-                    else listOf("Lista" to Store.listName(this@MainActivity), "Tipo" to "Link M3U")
-                } catch (e: Exception) { listOf("Conta" to "Não consegui falar com o servidor") }
+                try { if (Store.isXtream(this@MainActivity)) Xtream.accountInfo(this@MainActivity) else listOf("Tipo de lista" to "Link M3U") }
+                catch (e: Exception) { listOf("Conta" to "Não consegui falar com o servidor") }
             }
-            loading.visibility = View.GONE
-            showAccount(rows)
+            if (page != Page.ACCOUNT) return@launch
+            rows.forEach { (k, v) -> infoRow(k, v) }
         }
-    }
 
-    private fun showAccount(rows: List<Pair<String, String>>) {
+        // preferências (liga/desliga) e ações
+        prefs.addView(sectionLabel("PREFERÊNCIAS"))
+        prefs.addView(toggleRow("Modo simples (mais rápido)", Store.liteOn(this)) { on -> Store.setLite(this, on); lite = on; recreate() })
+        prefs.addView(toggleRow("Relógio fixo nos canais", Store.clockOn(this)) { on -> Store.setClock(this, on) })
+        prefs.addView(toggleRow("Logo no canto dos canais", Store.cornerLogoOn(this)) { on -> Store.setCornerLogo(this, on) })
+        prefs.addView(toggleRow("Abrir no último canal", Store.autoLastOn(this)) { on -> Store.setAutoLast(this, on) })
+        prefs.addView(sectionLabel("AJUSTES"))
+        prefs.addView(actionRow("Buffer: ${Buffer.current(this).label}") { openBufferSettings() })
+        prefs.addView(actionRow("DNS: ${DnsMode.current(this).label}") { openDnsSettings() })
+        prefs.addView(actionRow("Atualizar a lista agora") { refreshAll() })
+        prefs.addView(actionRow("Trocar login") { openSendList() })
+        prefs.addView(actionRow("Ver diagnóstico") {
+            AlertDialog.Builder(this).setTitle("Diagnóstico").setMessage(Diag.report(this)).setPositiveButton("Fechar", null).show()
+        })
         val agenda = Scheduler.all(this)
-        val fmt = SimpleDateFormat("dd/MM HH:mm", Locale.getDefault())
-        val text = buildString {
-            rows.forEach { (k, v) -> append("$k:  $v\n") }
-            append("\nVersão do app:  ${BuildConfig.VERSION_NAME}\n")
-            append("Relógio na tela:  ${if (Store.clockOn(this@MainActivity)) "Ligado" else "Desligado"}\n")
-            append("Logo no canal:  ${if (Store.cornerLogoOn(this@MainActivity)) "Ligado" else "Desligado"}\n")
-            if (agenda.isNotEmpty()) {
-                append("\nAgendamentos:\n")
-                agenda.forEach { append("• ${it.title} — ${it.channelName} (${fmt.format(Date(it.openAt))})\n") }
+        if (agenda.isNotEmpty()) {
+            prefs.addView(sectionLabel("AGENDAMENTOS"))
+            val fmt = SimpleDateFormat("dd/MM HH:mm", Locale.getDefault())
+            agenda.forEach { a ->
+                prefs.addView(actionRow("${a.title} — ${a.channelName} (abre ${fmt.format(Date(a.openAt))})") {
+                    AlertDialog.Builder(this).setTitle(a.title).setMessage("Cancelar este agendamento?")
+                        .setPositiveButton("Cancelar agendamento") { _, _ -> Scheduler.remove(this, a.id); showAccount() }
+                        .setNegativeButton("Manter", null).show()
+                })
             }
         }
-        AlertDialog.Builder(this)
-            .setTitle("Minha conta")
-            .setMessage(text)
-            .setPositiveButton("Fechar", null)
-            .setNeutralButton("Preferências") { _, _ -> openPreferences(rows) }
-            .setNegativeButton("Trocar login") { _, _ -> openSendList() }
-            .show()
     }
 
-    /** Liga/desliga relógio fixo, logo no canto dos canais e logo animado do fundo. */
-    private fun openPreferences(rows: List<Pair<String, String>>) {
-        val labels = arrayOf("Modo simples (mais rápido)", "Relógio fixo na tela dos canais", "Logo no canto dos canais", "Logo animado no fundo do menu")
-        val checked = booleanArrayOf(Store.liteOn(this), Store.clockOn(this), Store.cornerLogoOn(this), Store.bgLogoOn(this))
-        AlertDialog.Builder(this)
-            .setTitle("Preferências")
-            .setMultiChoiceItems(labels, checked) { _, i, on ->
-                when (i) {
-                    0 -> { Store.setLite(this, on); lite = on; applyLite(); showTab(tab) }
-                    1 -> Store.setClock(this, on)
-                    2 -> Store.setCornerLogo(this, on)
-                    3 -> { Store.setBgLogo(this, on); applyBgLogo() }
-                }
-            }
-            .setPositiveButton("OK") { _, _ -> showAccount(rows) }
-            .show()
+    private fun sectionLabel(t: String) = TextView(this).apply {
+        text = t; letterSpacing = 0.15f; setTextColor(Color.parseColor("#8B8F9C"))
+        setTextSize(TypedValue.COMPLEX_UNIT_SP, 13f); setTypeface(null, android.graphics.Typeface.BOLD)
+        setPadding(dp(4), dp(14), 0, dp(8))
     }
 
-    private fun applyBgLogo() {
-        findViewById<View>(R.id.bgLogo).visibility = if (Store.bgLogoOn(this) && !lite) View.VISIBLE else View.GONE
+    private fun prefRowBase(): LinearLayout = LinearLayout(this).apply {
+        orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL
+        setBackgroundResource(R.drawable.bg_item); isFocusable = true
+        setPadding(dp(16), dp(14), dp(16), dp(14))
+        layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply { bottomMargin = dp(8) }
+        setOnKeyListener { _, code, ev -> if (ev.action == KeyEvent.ACTION_DOWN && code == KeyEvent.KEYCODE_DPAD_LEFT) { focusRail(); true } else false }
     }
 
-    /** Modo simples: fundo liso, listas só com texto, sem cartas animadas. */
-    private fun applyLite() {
-        val root = (findViewById<View>(R.id.bgLogo).parent as View)
-        if (lite) root.setBackgroundColor(android.graphics.Color.parseColor("#240407")) else root.setBackgroundResource(R.drawable.bg_main)
-        vodSimple.visibility = if (lite) View.VISIBLE else View.GONE
-        findViewById<View>(R.id.fanBox).visibility = if (lite) View.GONE else View.VISIBLE
-        channelAdapter.showLogos = !lite
-        applyBgLogo()
+    private fun toggleRow(label: String, initial: Boolean, onChange: (Boolean) -> Unit): View {
+        var on = initial
+        val row = prefRowBase()
+        row.addView(TextView(this).apply { text = label; setTextSize(TypedValue.COMPLEX_UNIT_SP, 16f) }, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
+        val track = android.widget.FrameLayout(this)
+        val knob = View(this).apply { background = GradientDrawable().apply { shape = GradientDrawable.OVAL; setColor(Color.WHITE) } }
+        track.addView(knob, android.widget.FrameLayout.LayoutParams(dp(22), dp(22), Gravity.CENTER_VERTICAL))
+        fun paint() {
+            track.background = GradientDrawable().apply { cornerRadius = dp(14).toFloat(); setColor(Color.parseColor(if (on) "#E3162A" else "#2F3441")) }
+            knob.translationX = if (on) dp(25).toFloat() else dp(3).toFloat()
+        }
+        paint()
+        row.addView(track, LinearLayout.LayoutParams(dp(50), dp(28)))
+        row.setOnClickListener { on = !on; paint(); onChange(on) }
+        return row
     }
 
-    private fun confirmExit() {
-        AlertDialog.Builder(this)
-            .setTitle("Sair do GS IPTV?")
-            .setMessage("Deseja realmente sair do app?")
-            .setPositiveButton("Sair") { _, _ -> finish() }
-            .setNegativeButton("Continuar", null)
-            .show()
-            .getButton(AlertDialog.BUTTON_NEGATIVE)?.requestFocus()
-    }
-
-    private fun openSettings() {
-        AlertDialog.Builder(this)
-            .setTitle("Ajustes")
-            .setItems(arrayOf(
-                "Buffer: ${Buffer.current(this).label}",
-                "DNS: ${DnsMode.current(this).label}",
-            )) { _, i -> if (i == 0) openBufferSettings() else openDnsSettings() }
-            .setNegativeButton("Fechar", null)
-            .show()
+    private fun actionRow(label: String, action: () -> Unit): View {
+        val row = prefRowBase()
+        row.addView(TextView(this).apply { text = label; setTextSize(TypedValue.COMPLEX_UNIT_SP, 16f) }, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
+        row.addView(TextView(this).apply { text = "›"; setTextSize(TypedValue.COMPLEX_UNIT_SP, 22f); setTextColor(Color.parseColor("#8B8F9C")) })
+        row.setOnClickListener { action() }
+        return row
     }
 
     private fun openDnsSettings() {
         val opts = DnsMode.values()
-        AlertDialog.Builder(this)
-            .setTitle("DNS (endereço do servidor)")
+        AlertDialog.Builder(this).setTitle("DNS (endereço do servidor)")
             .setSingleChoiceItems(opts.map { it.label }.toTypedArray(), DnsMode.current(this).ordinal) { d, i ->
-                DnsMode.set(this, opts[i])
-                Diag.log("DNS alterado para ${opts[i].label}")
-                toast("DNS: ${opts[i].label}")
-                Http.warm(Store.playlistUrl(this))
-                d.dismiss()
-            }
-            .setNegativeButton("Fechar", null)
-            .show()
+                DnsMode.set(this, opts[i]); Http.warm(Store.playlistUrl(this)); toast("DNS: ${opts[i].label}"); d.dismiss(); showAccount()
+            }.setNegativeButton("Fechar", null).show()
     }
 
     private fun openBufferSettings() {
         val opts = Buffer.values()
-        val cur = Buffer.current(this).ordinal
-        AlertDialog.Builder(this)
-            .setTitle("Buffer (reserva de vídeo)")
-            .setSingleChoiceItems(opts.map { "${it.label}\n${it.desc}" }.toTypedArray(), cur) { d, i ->
-                Buffer.set(this, opts[i])
-                Diag.log("Buffer alterado para ${opts[i].label}")
-                toast("Buffer: ${opts[i].label}")
-                d.dismiss()
-            }
-            .setNegativeButton("Fechar", null)
-            .show()
+        AlertDialog.Builder(this).setTitle("Buffer (reserva de vídeo)")
+            .setSingleChoiceItems(opts.map { "${it.label}\n${it.desc}" }.toTypedArray(), Buffer.current(this).ordinal) { d, i ->
+                Buffer.set(this, opts[i]); toast("Buffer: ${opts[i].label}"); d.dismiss(); showAccount()
+            }.setNegativeButton("Fechar", null).show()
     }
 
-    // ---------------- Abas ----------------
-    /** Dock de ícones: o ícone selecionado e os vizinhos crescem; pontinho embaixo da aba aberta. */
-    private fun buildTabs() {
-        val bar = findViewById<LinearLayout>(R.id.tabs)
-        (bar.parent as? android.view.ViewGroup)?.clipChildren = false
-        val style = mapOf(
-            Tab.HOME to (R.drawable.ic_tab_home to ("#E3162A" to "#8A0F19")),
-            Tab.TV to (R.drawable.ic_tab_tv to ("#3A8DFF" to "#1546A0")),
-            Tab.GAMES to (R.drawable.ic_tab_games to ("#2BC27A" to "#0B6B44")),
-            Tab.HIGHLIGHTS to (R.drawable.ic_tab_star to ("#FFC94A" to "#C27C00")),
-            Tab.MOVIES to (R.drawable.ic_tab_film to ("#9B5BFF" to "#4E1FA8")),
-            Tab.SERIES to (R.drawable.ic_tab_series to ("#FF5A6E" to "#A3142A")),
-            Tab.KIDS to (R.drawable.ic_tab_kids to ("#FF9A3D" to "#C2530A")),
-            Tab.ANIME to (R.drawable.ic_tab_anime to ("#FF6FC1" to "#A3226B")),
-        )
-        Tab.values().forEach { t ->
-            val (icon, colors) = style[t] ?: (R.drawable.ic_tab_star to ("#888888" to "#444444"))
-            val item = LinearLayout(this).apply {
-                orientation = LinearLayout.VERTICAL
-                gravity = Gravity.CENTER_HORIZONTAL
-                isFocusable = true
-                clipChildren = false
-                pivotY = dp(60).toFloat()
-            }
-            val tile = ImageView(this).apply {
-                setImageResource(icon)
-                val pd = dp(10); setPadding(pd, pd, pd, pd)
-                background = android.graphics.drawable.GradientDrawable(
-                    android.graphics.drawable.GradientDrawable.Orientation.TL_BR,
-                    intArrayOf(Color.parseColor(colors.first), Color.parseColor(colors.second)),
-                ).apply { cornerRadius = dp(13).toFloat() }
-                elevation = dp(4).toFloat()
-            }
-            val label = TextView(this).apply {
-                text = t.label.lowercase().replaceFirstChar { it.uppercase() }
-                setTextSize(TypedValue.COMPLEX_UNIT_SP, 11f)
-                setTextColor(Color.WHITE)
-                gravity = Gravity.CENTER
-                alpha = 0f
-            }
-            val dot = View(this).apply {
-                background = android.graphics.drawable.GradientDrawable().apply {
-                    shape = android.graphics.drawable.GradientDrawable.OVAL; setColor(Color.WHITE)
-                }
-                visibility = View.INVISIBLE
-                tag = "dot"
-            }
-            item.addView(label, LinearLayout.LayoutParams(dp(80), LinearLayout.LayoutParams.WRAP_CONTENT))
-            item.addView(tile, LinearLayout.LayoutParams(dp(46), dp(46)))
-            item.addView(dot, LinearLayout.LayoutParams(dp(5), dp(5)).apply { topMargin = dp(4) })
-            item.setOnFocusChangeListener { _, has ->
-                label.animate().alpha(if (has) 1f else 0f).setDuration(120).start()
-                magnifyDock()
-                if (has && t != tab) showTab(t)
-            }
-            item.setOnKeyListener { _, code, ev ->
-                if (ev.action == android.view.KeyEvent.ACTION_DOWN && code == android.view.KeyEvent.KEYCODE_DPAD_DOWN) {
-                    focusContent(); true
-                } else false
-            }
-            item.setOnClickListener { showTab(t) }
-            bar.addView(item, LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply {
-                marginStart = dp(-10); marginEnd = dp(-10)
-            })
-            tabViews.add(item)
-        }
-        tabViews[0].isSelected = true
-        markDockSelected()
-    }
-
-    /** Efeito de lupa: o ícone com foco cresce bastante e os vizinhos um pouco. */
-    private fun magnifyDock() {
-        val f = tabViews.indexOfFirst { it.hasFocus() }
-        tabViews.forEachIndexed { i, v ->
-            val dist = if (f < 0) 99 else kotlin.math.abs(i - f)
-            val scale = when (dist) { 0 -> 1.45f; 1 -> 1.2f; 2 -> 1.07f; else -> 1f }
-            v.animate().scaleX(scale).scaleY(scale).translationY(if (dist == 0) -dp(6).toFloat() else 0f)
-                .setDuration(if (lite) 0 else 140).start()
-        }
-    }
-
-    private fun markDockSelected() {
-        tabViews.forEachIndexed { i, v -> v.findViewWithTag<View>("dot")?.visibility = if (i == tab.ordinal) View.VISIBLE else View.INVISIBLE }
-    }
-
-    private fun setupLists() {
-        liveCatAdapter = CategoryAdapter { i -> showLiveCategory(i) }
-        vodCatAdapter = CategoryAdapter { i -> showVodCategory(i) }
-        channelAdapter = ChannelAdapter(
-            onClick = { item, pos ->
-                current = item
-                openFullscreen(channelAdapter.items, pos)
-            },
-            onLongClick = { item, _ ->
-                val added = Store.toggleFavorite(this, item.url)
-                channelAdapter.favorites = Store.favorites(this)
-                channelAdapter.refresh()
-                toast(if (added) "Adicionado aos favoritos" else "Removido dos favoritos")
-            },
-        )
-        val vodTitle = findViewById<TextView>(R.id.vodTitle)
-        val vodMeta = findViewById<TextView>(R.id.vodMeta)
-        cardFan.onPick = { item, pos ->
-            if (item.url.startsWith(Xtream.SERIES_PREFIX)) openSeries(item)
-            else openFullscreen(cardFan.items, pos)
-        }
-        val hlTitle = findViewById<TextView>(R.id.hlTitle)
-        spiral.onPick = { _, pos -> openFullscreen(spiral.items, pos) }
-        spiral.onChange = { item -> hlTitle.text = item?.name ?: "" }
-        cardFan.onChange = { item ->
-            vodTitle.text = item?.name ?: ""
-            vodMeta.text = item?.group ?: ""
-        }
-
-        liveCatList = findViewById(R.id.liveCategories)
-        vodCatList = findViewById(R.id.vodCategories)
-        liveCatList.layoutManager = LinearLayoutManager(this); liveCatList.adapter = liveCatAdapter
-        vodCatList.layoutManager = LinearLayoutManager(this); vodCatList.adapter = vodCatAdapter
-
-        // Direções do controle: cada borda leva exatamente para o lugar certo
-        val toTabs = { tabViews[tab.ordinal].requestFocus(); Unit }
-        liveCatList.onUp = toTabs
-        liveCatList.onLeft = {}
-        liveCatList.onRight = { channelsList.focusPosition(0) }
-        channelsList.onUp = toTabs
-        channelsList.onLeft = { liveCatList.focusPosition(liveCatAdapter.selected) }
-        channelsList.onRight = {}
-        vodCatList.onUp = toTabs
-        vodCatList.onLeft = {}
-        vodCatList.onRight = { if (lite) vodSimple.focusPosition(0) else cardFan.requestFocus() }
-        vodSimple.onLeft = { vodCatList.focusPosition(vodCatAdapter.selected) }
-        vodSimple.onUp = toTabs
-        vodSimple.onRight = {}
-        cardFan.onUp = toTabs
-        gamesList.onUp = toTabs
-        spiral.onUp = toTabs
-        cardFan.onLeftEdge = { vodCatList.focusPosition(vodCatAdapter.selected) }
-        channelsList.setHasFixedSize(true)
-        channelsList.layoutManager = LinearLayoutManager(this)
-        channelsList.adapter = channelAdapter
-        // Sem animação de troca: assim o foco do controle não "pula"
-        listOf(liveCatList, vodCatList, channelsList).forEach { it.itemAnimator = null }
-        // Botões do topo: para baixo vai para as abas
-        listOf(R.id.btnSearch, R.id.btnSend, R.id.btnRefresh, R.id.btnAccount, R.id.btnSettings).forEach { id ->
-            findViewById<View>(id).setOnKeyListener { _, code, ev ->
-                if (ev.action == android.view.KeyEvent.ACTION_DOWN && code == android.view.KeyEvent.KEYCODE_DPAD_DOWN) {
-                    tabViews[tab.ordinal].requestFocus(); true
-                } else false
-            }
-        }
-    }
-
-    /** Desce das abas para o conteúdo da aba atual (painel, categorias). */
-    private fun focusContent() {
+    // ================= Abrir conteúdo =================
+    private fun openItem(list: List<Item>, i: Int) {
+        val item = list.getOrNull(i) ?: return
         when {
-            sectionPanel.visibility == View.VISIBLE -> showPanel(kindsFor(tab).firstOrNull { !Store.isLoaded(it) })
-            tab == Tab.TV -> liveCatList.focusPosition(liveCatAdapter.selected)
-            tab == Tab.HIGHLIGHTS && !lite -> spiral.requestFocus()
-            tab == Tab.GAMES -> gamesList.focusPosition(0)
-            tab == Tab.HOME -> focusFirstTile()
-            else -> vodCatList.focusPosition(vodCatAdapter.selected)
+            item.url.startsWith(Xtream.SERIES_PREFIX) -> openSeries(item)
+            else -> { if (item.kind == Kind.LIVE) current = item; openFullscreen(list, i) }
         }
     }
 
-    private fun showTab(t: Tab) {
-        if (t != Tab.HOME) stopBubblePreview()
-        tab = t
-        tabViews.forEachIndexed { i, v -> v.isSelected = i == t.ordinal }
-        markDockSelected()
-        val missing = kindsFor(t).filterNot { Store.isLoaded(it) }
-        if (missing.isNotEmpty()) {
-            // Seção ainda não baixada: se já tem cópia salva abre direto, senão mostra o painel
-            if (loadingNow) return
-            if (missing.all { Store.hasCache(this, it) }) { loadKinds(missing, force = false, silent = true); return }
-            liveView.visibility = View.GONE
-            vodView.visibility = View.GONE
-            highlightView.visibility = View.GONE
-            gamesView.visibility = View.GONE
-            homeView.visibility = View.GONE
-            empty.visibility = View.GONE
-            showPanel(missing.first())
-            return
-        }
-        sectionPanel.visibility = View.GONE
-        val data = Store.tab(t)
-        val list = data.items
-        empty.visibility = if (list.isEmpty()) View.VISIBLE else View.GONE
-        empty.text = "Sua lista não tem conteúdo para a aba ${t.label}."
-
-        highlightView.visibility = View.GONE
-        gamesView.visibility = View.GONE
-        homeView.visibility = View.GONE
-        if (t == Tab.HOME) {
-            liveView.visibility = View.GONE
-            vodView.visibility = View.GONE
-            showHome()
-        } else if (t == Tab.GAMES) {
-            liveView.visibility = View.GONE
-            vodView.visibility = View.GONE
-            empty.visibility = View.GONE
-            gamesView.visibility = View.VISIBLE
-            loadGames()
-        } else if (t == Tab.HIGHLIGHTS && lite) {
-            liveView.visibility = View.GONE
-            vodView.visibility = View.VISIBLE
-            vodCats = listOf("Destaques" to list)
-            vodCatAdapter.items = vodCats.map { it.first }
-            showVodCategory(0)
-        } else if (t == Tab.HIGHLIGHTS) {
-            liveView.visibility = View.GONE
-            vodView.visibility = View.GONE
-            highlightView.visibility = if (list.isEmpty()) View.GONE else View.VISIBLE
-            spiral.showItems(list)
-        } else if (t == Tab.TV) {
-            liveView.visibility = View.VISIBLE
-            vodView.visibility = View.GONE
-            liveCats = Store.liveCategories(this)
-            liveCatAdapter.items = liveCats.map { it.first }
-            showLiveCategory(0)
-        } else {
-            liveView.visibility = View.GONE
-            vodView.visibility = View.VISIBLE
-            vodCats = buildList {
-                add("Todos" to list)
-                addAll(data.groups)
-            }
-            vodCatAdapter.items = vodCats.map { it.first }
-            showVodCategory(0)
-        }
+    private fun openSeries(series: Item) {
+        startActivity(Intent(this, SeriesActivity::class.java)
+            .putExtra("name", series.name).putExtra("url", series.url).putExtra("logo", series.logo).putExtra("group", series.group))
     }
 
-    private fun showLiveCategory(i: Int) {
-        val cat = liveCats.getOrNull(i) ?: return
-        channelAdapter.favorites = Store.favorites(this)
-        channelAdapter.items = cat.second
-        channelsList.scrollToPosition(0)
+    private fun openFullscreen(list: List<Item>, index: Int) {
+        Store.playQueue = list
+        startActivity(Intent(this, PlayerActivity::class.java).putExtra("index", index))
     }
 
-    private fun showVodCategory(i: Int) {
-        val cat = vodCats.getOrNull(i) ?: return
-        if (lite) { vodSimpleAdapter.items = cat.second; vodSimple.scrollToPosition(0) }
-        else cardFan.showItems(cat.second)
-    }
-
-    // ---------------- Carregar lista (uma seção de cada vez) ----------------
-    private fun kindsFor(t: Tab): List<Kind> = when (t) {
-        Tab.TV -> listOf(Kind.LIVE)
-        Tab.MOVIES -> listOf(Kind.MOVIE)
-        Tab.SERIES -> listOf(Kind.SERIES)
-        Tab.KIDS, Tab.ANIME -> listOf(Kind.MOVIE, Kind.SERIES)
-        Tab.HIGHLIGHTS -> listOf(Kind.MOVIE)
-        Tab.GAMES -> emptyList()
-        Tab.HOME -> emptyList()
-    }
-
+    // ================= Carregar lista =================
     private fun setupPanel() {
-        sectionPanel = findViewById(R.id.sectionPanel)
         findViewById<View>(R.id.btnLive).setOnClickListener { loadKinds(listOf(Kind.LIVE), Store.isLoaded(Kind.LIVE)) }
         findViewById<View>(R.id.btnMovie).setOnClickListener { loadKinds(listOf(Kind.MOVIE), Store.isLoaded(Kind.MOVIE)) }
         findViewById<View>(R.id.btnSeries).setOnClickListener { loadKinds(listOf(Kind.SERIES), Store.isLoaded(Kind.SERIES)) }
+        listOf(R.id.btnLive, R.id.btnMovie, R.id.btnSeries).forEach { id ->
+            findViewById<View>(id).setOnKeyListener { _, code, ev -> if (ev.action == KeyEvent.ACTION_DOWN && code == KeyEvent.KEYCODE_DPAD_LEFT) { focusRail(); true } else false }
+        }
     }
 
     private fun updatePanel() {
         fun set(kind: Kind, status: Int, btn: Int) {
-            val st = findViewById<TextView>(status)
-            val b = findViewById<TextView>(btn)
+            val st = findViewById<TextView>(status); val b = findViewById<TextView>(btn)
             when {
                 Store.isLoaded(kind) -> { st.text = "✓ Baixado"; b.text = "Atualizar" }
-                Store.hasFreshCache(this, kind) -> { st.text = "Salvo na TV"; b.text = "Abrir" }
+                Store.hasCache(this, kind) -> { st.text = "Salvo na TV"; b.text = "Abrir" }
                 else -> { st.text = "Não baixado"; b.text = "Baixar" }
             }
         }
@@ -753,66 +699,28 @@ class MainActivity : AppCompatActivity() {
 
     private fun showPanel(focus: Kind?) {
         updatePanel()
+        pages.values.forEach { it.visibility = View.GONE }
         sectionPanel.visibility = View.VISIBLE
-        val id = when (focus) { Kind.LIVE -> R.id.btnLive; Kind.MOVIE -> R.id.btnMovie; Kind.SERIES -> R.id.btnSeries; null -> R.id.btnLive }
-        sectionPanel.post { findViewById<View>(id).requestFocus() }
+        val id = when (focus) { Kind.MOVIE -> R.id.btnMovie; Kind.SERIES -> R.id.btnSeries; else -> R.id.btnLive }
+        if (railItems.values.none { it.hasFocus() }) sectionPanel.post { findViewById<View>(id).requestFocus() }
     }
 
-    /** Ao abrir: só abre o que já está salvo na TV; o resto espera o botão Baixar. */
-    /**
-     * Ao abrir: mostra na hora o que já está salvo na TV (sem tela de carregamento)
-     * e atualiza os canais por trás, em silêncio.
-     */
+    /** Ao abrir: mostra na hora o que já está salvo e atualiza os canais por trás. */
     private fun startup() {
-        findViewById<TextView>(R.id.brand).text = "GS IPTV  ·  ${Store.listName(this)}"
         val cached = Kind.values().filter { Store.hasCache(this, it) && !Store.isLoaded(it) }
-        if (cached.isEmpty()) { showTab(tab); tabViews[tab.ordinal].requestFocus(); return }
+        if (cached.isEmpty()) { showPage(page); focusRail(); return }
         loadKinds(cached, force = false, silent = true) {
-            // depois de abrir a cópia salva, atualiza em segundo plano
-            val toRefresh = cached.filter { it == Kind.LIVE || Store.cacheAgeMin(this, it) > 12 * 60 }
-            refreshQuietly(toRefresh)
+            if (Store.autoLastOn(this)) openLastChannel()
+            refreshQuietly(cached.filter { it == Kind.LIVE || Store.cacheAgeMin(this, it) > 12 * 60 })
         }
     }
 
-    /** Atualiza as seções por trás, sem aparecer nada na tela; troca os dados no lugar. */
-    private fun refreshQuietly(kinds: List<Kind>) {
-        if (kinds.isEmpty()) return
-        lifecycleScope.launch {
-            val t0 = System.currentTimeMillis()
-            var changed = false
-            for (k in kinds) {
-                try { Store.loadSection(this@MainActivity, k, force = true); changed = true } catch (_: Throwable) { }
-            }
-            Diag.log("Atualização em segundo plano: ${kinds.joinToString { Store.label(it) }} em ${System.currentTimeMillis() - t0}ms")
-            if (changed) applyFreshData()
-        }
+    private fun openLastChannel() {
+        val last = Store.lastUrl(this) ?: return
+        val live = Store.tab(Tab.TV).items
+        val i = live.indexOfFirst { it.url == last }
+        if (i >= 0) { current = live[i]; openFullscreen(live, i) }
     }
-
-    /** Coloca os dados novos na tela sem tirar o usuário de onde ele está. */
-    private fun applyFreshData() {
-        if (sectionPanel.visibility == View.VISIBLE) { updatePanel(); return }
-        when {
-            tab == Tab.TV -> refreshLiveInPlace()
-            tabViews.any { it.hasFocus() } -> showTab(tab)   // está nas abas: pode redesenhar
-            // dentro de filmes/séries: os dados novos entram na próxima troca de aba
-        }
-    }
-
-    private fun refreshLiveInPlace() {
-        if (!Store.isLoaded(Kind.LIVE)) return
-        val sel = liveCatAdapter.selected
-        val name = liveCats.getOrNull(sel)?.first
-        val focusedRow = (channelsList.focusedChild?.let { channelsList.getChildAdapterPosition(it) } ?: -1)
-        liveCats = Store.liveCategories(this)
-        liveCatAdapter.items = liveCats.map { it.first }
-        val i = liveCats.indexOfFirst { it.first == name }.coerceAtLeast(0)
-        liveCatAdapter.selected = i
-        channelAdapter.favorites = Store.favorites(this)
-        channelAdapter.items = liveCats.getOrNull(i)?.second ?: emptyList()
-        if (focusedRow >= 0) channelsList.focusPosition(focusedRow)
-    }
-
-    private var loadingNow = false
 
     private fun loadKinds(kinds: List<Kind>, force: Boolean, silent: Boolean = false, after: () -> Unit = {}) {
         if (loadingNow) return
@@ -820,123 +728,66 @@ class MainActivity : AppCompatActivity() {
         lifecycleScope.launch {
             sectionPanel.visibility = View.GONE
             if (!silent) loading.visibility = View.VISIBLE
-            empty.visibility = View.GONE
             var failed = false
             for (k in kinds) {
                 loadingText.text = "Preparando ${Store.label(k)}…"
                 try {
                     Store.loadSection(this@MainActivity, k, force, { msg -> if (!silent) runOnUiThread { loadingText.text = msg } }, allowStale = silent)
                 } catch (e: OutOfMemoryError) {
-                    failed = true
-                    toast("Os ${Store.label(k)} são muitos para a memória desta TV.")
+                    failed = true; toast("Os ${Store.label(k)} são muitos para a memória desta TV.")
                 } catch (e: Exception) {
-                    failed = true
-                    toast("Não foi possível baixar ${Store.label(k)}: ${e.message ?: "erro de conexão"}")
+                    failed = true; toast("Não foi possível baixar ${Store.label(k)}: ${e.message ?: "erro de conexão"}")
                 }
             }
             loading.visibility = View.GONE
             loadingNow = false
             loaded = true
-            if (failed) showPanel(kinds.first()) else showTab(tab)
-            if (sectionPanel.visibility != View.VISIBLE) tabViews[tab.ordinal].requestFocus()
+            if (failed) showPanel(kinds.first()) else showPage(page)
+            if (sectionPanel.visibility != View.VISIBLE && currentFocus == null) focusRail()
             after()
         }
     }
 
-    /** Atualizar: baixa de novo o que já está aberto, ou mostra o painel. */
+    private fun refreshQuietly(kinds: List<Kind>) {
+        if (kinds.isEmpty()) return
+        lifecycleScope.launch {
+            val t0 = System.currentTimeMillis()
+            var changed = false
+            for (k in kinds) { try { Store.loadSection(this@MainActivity, k, force = true); changed = true } catch (_: Throwable) { } }
+            Diag.log("Atualização em segundo plano: ${kinds.joinToString { Store.label(it) }} em ${System.currentTimeMillis() - t0}ms")
+            if (changed && railItems.values.any { it.hasFocus() }) showPage(page)
+        }
+    }
+
     private fun refreshAll() {
-        if (tab == Tab.GAMES) { loadGames(force = true); return }
+        if (page == Page.GAMES) { loadGames(gamesDay, force = true); return }
         val open = Kind.values().filter { Store.isLoaded(it) }
         if (open.isEmpty()) showPanel(null) else { toast("Atualizando a lista…"); refreshQuietly(open) }
     }
 
-    /** Lista ou login novo recebido pelo celular. */
     private fun onNewList() {
         toast("Login confirmado!")
         current = null
-        tab = Tab.TV
-        findViewById<TextView>(R.id.brand).text = "GS IPTV  ·  ${Store.listName(this)}"
-        showTab(Tab.TV)
-    }
-
-    /** Série do Xtream: busca os episódios e mostra para escolher. */
-    private fun openSeries(series: Item) {
-        lifecycleScope.launch {
-            loading.visibility = View.VISIBLE
-            loadingText.text = "Abrindo ${series.name}…"
-            try {
-                val eps = withContext(Dispatchers.IO) { Xtream.episodes(this@MainActivity, series.url, series.name, series.logo) }
-                if (eps.isEmpty()) { toast("Nenhum episódio encontrado"); return@launch }
-                AlertDialog.Builder(this@MainActivity)
-                    .setTitle(series.name)
-                    .setItems(eps.map { it.name }.toTypedArray()) { _, i -> openFullscreen(eps, i) }
-                    .setNegativeButton("Voltar", null)
-                    .show()
-            } catch (e: Exception) {
-                toast("Não foi possível abrir a série")
-            } finally {
-                loading.visibility = View.GONE
-            }
-        }
+        page = Page.TV
+        showPage(Page.TV)
     }
 
     private fun openSendList() = sendList.launch(Intent(this, SendListActivity::class.java))
 
-    // ---------------- Busca ----------------
-    private fun openSearch() {
-        if (!loaded) return
-        val input = EditText(this).apply {
-            hint = "Nome do canal ou filme"
-            setSingleLine()
-            imeOptions = EditorInfo.IME_ACTION_SEARCH
-            setTextColor(Color.BLACK)
-        }
-        val dialog = AlertDialog.Builder(this)
-            .setTitle("Buscar em ${tab.label}")
-            .setView(input)
-            .setPositiveButton("Buscar") { _, _ -> applySearch(input.text.toString()) }
-            .setNegativeButton("Cancelar", null)
-            .create()
-        input.setOnEditorActionListener { _, _, _ -> applySearch(input.text.toString()); dialog.dismiss(); true }
-        dialog.show()
-    }
-
-    private fun applySearch(q: String) {
-        lifecycleScope.launch {
-            val results = withContext(Dispatchers.Default) { Store.search(q, tab) }
-            showSearch(q, results)
-        }
-    }
-
-    private fun showSearch(q: String, results: List<Item>) {
-        if (results.isEmpty()) { toast("Nada encontrado para \"$q\""); return }
-        val entry = "Busca: $q" to results
-        if (tab == Tab.TV) {
-            liveCats = listOf(entry) + liveCats.filterNot { it.first.startsWith("Busca:") }
-            liveCatAdapter.items = liveCats.map { it.first }
-            showLiveCategory(0)
-            channelsList.post { channelsList.getChildAt(0)?.requestFocus() }
-        } else {
-            vodCats = listOf(entry) + vodCats.filterNot { it.first.startsWith("Busca:") }
-            vodCatAdapter.items = vodCats.map { it.first }
-            showVodCategory(0)
-            cardFan.post { cardFan.requestFocus() }
-        }
-    }
-
-    // ---------------- Player ----------------
-    private fun openFullscreen(list: List<Item>, index: Int) {
-        releaseBubblePlayer() // libera a conexão antes de abrir o canal (planos com 1 tela)
-        Store.playQueue = list
-        startActivity(Intent(this, PlayerActivity::class.java).putExtra("index", index))
+    private fun confirmExit() {
+        AlertDialog.Builder(this).setTitle("Sair do GS IPTV?").setMessage("Deseja realmente sair do app?")
+            .setPositiveButton("Sair") { _, _ -> finish() }
+            .setNegativeButton("Continuar", null).show()
+            .getButton(AlertDialog.BUTTON_NEGATIVE)?.requestFocus()
     }
 
     override fun onStart() {
         super.onStart()
-        ui.post(scheduleCheck)
-        if (loaded && tab == Tab.TV) refreshLiveInPlace()
         ui.post(clockTick)
-        // Volta a tocar a prévia ao retornar da tela cheia
+        ui.post(scheduleCheck)
+        // voltou do player: atualiza o que pode ter mudado (favoritos, continuar assistindo)
+        if (loaded && page == Page.HOME) showHome()
+        if (loaded && page == Page.TV) liveAdapter.notifyItemRangeChanged(0, liveAdapter.itemCount)
     }
 
     override fun onResume() {
@@ -953,7 +804,6 @@ class MainActivity : AppCompatActivity() {
         super.onStop()
         ui.removeCallbacks(clockTick)
         ui.removeCallbacks(scheduleCheck)
-        releaseBubblePlayer()
     }
 
     private fun toast(s: String) = Toast.makeText(this, s, Toast.LENGTH_SHORT).show()

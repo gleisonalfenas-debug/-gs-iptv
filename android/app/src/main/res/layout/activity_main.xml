@@ -1,533 +1,212 @@
 <?xml version="1.0" encoding="utf-8"?>
-<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:app="http://schemas.android.com/apk/res-auto"
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@drawable/bg_main">
+    android:background="#111318"
+    android:orientation="horizontal">
 
-    <!-- Globo terrestre 3D girando no fundo -->
-    <com.gs.iptv.GlobeView
-        android:id="@+id/bgLogo"
-        android:layout_width="600dp"
-        android:layout_height="600dp"
-        android:layout_gravity="center"
-        android:alpha="0.30" />
-
+    <!-- Barra lateral -->
     <LinearLayout
-        android:layout_width="match_parent"
+        android:id="@+id/rail"
+        android:layout_width="84dp"
         android:layout_height="match_parent"
+        android:background="#0B0C10"
+        android:gravity="center_horizontal"
         android:orientation="vertical"
-        android:paddingHorizontal="32dp"
-        android:paddingTop="18dp"
-        android:paddingBottom="24dp">
+        android:paddingTop="20dp">
 
-    <!-- Topo: logo, ícones e relógio -->
-    <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="52dp"
-        android:gravity="center_vertical"
-        android:orientation="horizontal">
-
-        <ImageView
-            android:layout_width="38dp"
-            android:layout_height="38dp"
-            android:importantForAccessibility="no"
-            android:src="@drawable/ic_logo" />
-
-        <TextView
-            android:id="@+id/brand"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_marginStart="12dp"
-            android:layout_weight="1"
-            android:text="GS IPTV"
-            android:textSize="20sp"
-            android:textStyle="bold" />
-
-        <ImageButton
-            android:id="@+id/btnSearch"
-            style="@style/GS.IconButton"
-            android:contentDescription="Buscar"
-            android:src="@drawable/ic_search" />
-
-        <ImageButton
-            android:id="@+id/btnSend"
-            style="@style/GS.IconButton"
-            android:contentDescription="Enviar lista pelo celular"
-            android:src="@drawable/ic_phone" />
-
-        <ImageButton
-            android:id="@+id/btnRefresh"
-            style="@style/GS.IconButton"
-            android:contentDescription="Atualizar lista"
-            android:src="@drawable/ic_refresh" />
-
-        <ImageButton
-            android:id="@+id/btnAccount"
-            style="@style/GS.IconButton"
-            android:contentDescription="Minha conta"
-            android:src="@drawable/ic_user" />
-
-        <ImageButton
-            android:id="@+id/btnSettings"
-            style="@style/GS.IconButton"
-            android:contentDescription="Configurações"
-            android:src="@drawable/ic_settings" />
-
-        <TextView
-            android:id="@+id/version"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginStart="18dp"
-            android:textColor="@color/pink_text"
-            android:textSize="14sp" />
-
-        <TextView
-            android:id="@+id/clock"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginStart="18dp"
-            android:textSize="20sp" />
+        <com.gs.iptv.GlobeView
+            android:id="@+id/railGlobe"
+            android:layout_width="44dp"
+            android:layout_height="44dp"
+            android:layout_marginBottom="14dp" />
     </LinearLayout>
 
-    <!-- Abas -->
-    <LinearLayout
-        android:id="@+id/tabs"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_gravity="center_horizontal"
-        android:layout_marginTop="6dp"
-        android:background="@drawable/bg_dock"
-        android:clipChildren="false"
-        android:clipToPadding="false"
-        android:gravity="bottom"
-        android:orientation="horizontal"
-        android:paddingHorizontal="14dp"
-        android:paddingTop="10dp"
-        android:paddingBottom="6dp" />
-
     <FrameLayout
-        android:layout_width="match_parent"
-        android:layout_height="0dp"
-        android:layout_marginTop="14dp"
+        android:layout_width="0dp"
+        android:layout_height="match_parent"
         android:layout_weight="1">
 
-        <!-- TV ao vivo -->
         <LinearLayout
-            android:id="@+id/liveView"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
-            android:orientation="horizontal">
+            android:orientation="vertical">
 
-            <com.gs.iptv.TvList
-                android:id="@+id/liveCategories"
-                android:layout_width="260dp"
-                android:layout_height="match_parent" />
-
-            <com.gs.iptv.TvList
-                android:id="@+id/channels"
-                android:layout_width="0dp"
-                android:layout_height="match_parent"
-                android:layout_marginStart="12dp"
-                android:layout_weight="1" />
-        </LinearLayout>
-
-        <!-- Filmes / Séries / Kids / Anime -->
-        <LinearLayout
-            android:id="@+id/vodView"
-            android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            android:clipChildren="false"
-            android:orientation="horizontal"
-            android:visibility="gone">
-
-            <com.gs.iptv.TvList
-                android:id="@+id/vodCategories"
-                android:layout_width="260dp"
-                android:layout_height="match_parent" />
-
-            <com.gs.iptv.TvList
-                android:id="@+id/vodSimple"
-                android:layout_width="0dp"
-                android:layout_height="match_parent"
-                android:layout_marginStart="12dp"
-                android:layout_weight="1"
-                android:visibility="gone" />
-
-            <LinearLayout
-                android:id="@+id/fanBox"
-                android:layout_width="0dp"
-                android:layout_height="match_parent"
-                android:layout_marginStart="16dp"
-                android:layout_weight="1"
-                android:clipChildren="false"
-                android:orientation="vertical">
-
-                <com.gs.iptv.CardFan
-                    android:id="@+id/cardFan"
-                    android:layout_width="match_parent"
-                    android:layout_height="0dp"
-                    android:layout_weight="1"
-                    android:clipChildren="false" />
-
-                <TextView
-                    android:id="@+id/vodTitle"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="10dp"
-                    android:ellipsize="end"
-                    android:gravity="center"
-                    android:maxLines="1"
-                    android:textSize="28sp"
-                    android:textStyle="bold" />
-
-                <TextView
-                    android:id="@+id/vodMeta"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:gravity="center"
-                    android:textColor="@color/pink_text"
-                    android:textSize="16sp" />
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_gravity="center_horizontal"
-                    android:layout_marginTop="8dp"
-                    android:background="@drawable/bg_button"
-                    android:paddingHorizontal="26dp"
-                    android:paddingVertical="10dp"
-                    android:text="▶  OK para assistir"
-                    android:textColor="#3A2400"
-                    android:textSize="17sp"
-                    android:textStyle="bold" />
-            </LinearLayout>
-        </LinearLayout>
-
-        <!-- Início: vitrine (rola sozinha conforme o foco desce) -->
-        <ScrollView
-            android:id="@+id/homeView"
-            android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            android:scrollbars="none"
-            android:visibility="gone">
-
+            <!-- Cabeçalho -->
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:orientation="vertical"
-                android:paddingBottom="16dp">
+                android:gravity="bottom"
+                android:orientation="horizontal"
+                android:paddingHorizontal="28dp"
+                android:paddingTop="20dp"
+                android:paddingBottom="12dp">
 
-                <com.gs.iptv.ShowcaseView
-                    android:id="@+id/showcase"
-                    android:layout_width="match_parent"
-                    android:layout_height="240dp" />
-
-                <TextView
-                    android:id="@+id/showcaseInfo"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="4dp"
-                    android:gravity="center"
-                    android:textColor="@color/pink_text"
-                    android:textSize="15sp" />
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="10dp"
-                    android:text="Canais"
-                    android:textSize="18sp"
-                    android:textStyle="bold" />
-
-                <com.gs.iptv.HRow
-                    android:id="@+id/storiesRow"
-                    android:layout_width="match_parent"
-                    android:layout_height="132dp"
-                    android:clipToPadding="false"
-                    android:paddingHorizontal="6dp"
-                    android:paddingTop="10dp" />
-
-                <TextView
-                    android:id="@+id/bottomTitle"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="4dp"
-                    android:textSize="18sp"
-                    android:textStyle="bold" />
-
-                <com.gs.iptv.HRow
-                    android:id="@+id/bottomRow"
-                    android:layout_width="match_parent"
-                    android:layout_height="224dp"
-                    android:clipToPadding="false"
-                    android:paddingHorizontal="6dp"
-                    android:paddingVertical="12dp" />
-            </LinearLayout>
-        </ScrollView>
-
-        <!-- Jogos do dia -->
-        <LinearLayout
-            android:id="@+id/gamesView"
-            android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            android:orientation="vertical"
-            android:visibility="gone">
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:gravity="center_vertical"
-                android:orientation="horizontal">
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="Jogos de hoje"
-                    android:textSize="26sp"
-                    android:textStyle="bold" />
-
-                <TextView
-                    android:id="@+id/gamesDate"
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_marginStart="14dp"
-                    android:layout_weight="1"
-                    android:textColor="@color/pink_text"
-                    android:textSize="17sp" />
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="OK no jogo = assistir ou agendar"
-                    android:textColor="@color/pink_text"
-                    android:textSize="14sp" />
+                <TextView android:id="@+id/title" android:layout_width="wrap_content" android:layout_height="wrap_content"
+                    android:textSize="26sp" android:textStyle="bold" />
+                <TextView android:id="@+id/subtitle" android:layout_width="0dp" android:layout_height="wrap_content"
+                    android:layout_marginStart="12dp" android:layout_weight="1" android:ellipsize="end" android:maxLines="1"
+                    android:textColor="#8B8F9C" android:textSize="15sp" />
+                <TextView android:id="@+id/version" android:layout_width="wrap_content" android:layout_height="wrap_content"
+                    android:layout_marginEnd="16dp" android:textColor="#5C6070" android:textSize="12sp" />
+                <TextView android:id="@+id/clock" android:layout_width="wrap_content" android:layout_height="wrap_content"
+                    android:textSize="18sp" android:textStyle="bold" />
             </LinearLayout>
 
-            <com.gs.iptv.TvList
-                android:id="@+id/gamesList"
+            <FrameLayout
                 android:layout_width="match_parent"
                 android:layout_height="0dp"
-                android:layout_marginTop="12dp"
-                android:layout_weight="1" />
-        </LinearLayout>
+                android:layout_weight="1">
 
-        <!-- Destaques em espiral -->
-        <LinearLayout
-            android:id="@+id/highlightView"
-            android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            android:orientation="vertical"
-            android:visibility="gone">
+                <!-- INÍCIO -->
+                <ScrollView android:id="@+id/pageHome" android:layout_width="match_parent" android:layout_height="match_parent"
+                    android:scrollbars="none" android:visibility="gone">
+                    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                        android:orientation="vertical" android:paddingHorizontal="28dp" android:paddingBottom="20dp">
 
-            <com.gs.iptv.SpiralView
-                android:id="@+id/spiral"
-                android:layout_width="match_parent"
-                android:layout_height="0dp"
-                android:layout_weight="1" />
+                        <FrameLayout android:id="@+id/hero" android:layout_width="match_parent" android:layout_height="210dp"
+                            android:background="@drawable/bg_card" android:focusable="true" android:foreground="@drawable/bg_focus_ring">
+                            <ImageView android:id="@+id/heroImg" android:layout_width="match_parent" android:layout_height="match_parent"
+                                android:importantForAccessibility="no" android:scaleType="centerCrop" />
+                            <View android:layout_width="match_parent" android:layout_height="match_parent" android:background="@drawable/bg_hero_dark" />
+                            <LinearLayout android:layout_width="match_parent" android:layout_height="match_parent" android:gravity="center_vertical"
+                                android:orientation="vertical" android:paddingHorizontal="26dp">
+                                <TextView android:id="@+id/heroKind" android:layout_width="wrap_content" android:layout_height="wrap_content"
+                                    android:letterSpacing="0.15" android:text="LANÇAMENTO" android:textColor="@color/gold" android:textSize="13sp" android:textStyle="bold" />
+                                <TextView android:id="@+id/heroTitle" android:layout_width="match_parent" android:layout_height="wrap_content"
+                                    android:layout_marginEnd="300dp" android:ellipsize="end" android:maxLines="1" android:textSize="38sp" android:textStyle="bold" />
+                                <TextView android:id="@+id/heroMeta" android:layout_width="wrap_content" android:layout_height="wrap_content"
+                                    android:textColor="#D0D3DB" android:textSize="15sp" />
+                                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="10dp"
+                                    android:background="@drawable/bg_white_btn" android:paddingHorizontal="18dp" android:paddingVertical="8dp"
+                                    android:text="▶  Assistir" android:textColor="#111318" android:textSize="15sp" android:textStyle="bold" />
+                            </LinearLayout>
+                        </FrameLayout>
 
-            <TextView
-                android:id="@+id/hlTitle"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:ellipsize="end"
-                android:gravity="center"
-                android:maxLines="1"
-                android:textSize="28sp"
-                android:textStyle="bold" />
+                        <TextView android:id="@+id/contTitle" style="@style/GS.RowTitle" android:text="Continuar assistindo" />
+                        <com.gs.iptv.HRow android:id="@+id/contRow" android:layout_width="match_parent" android:layout_height="wrap_content"
+                            android:clipToPadding="false" android:paddingVertical="6dp" />
 
-            <TextView
-                android:id="@+id/hlMeta"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:gravity="center"
-                android:text="◀ ▶ gira a espiral · OK assistir"
-                android:textColor="@color/pink_text"
-                android:textSize="16sp" />
-        </LinearLayout>
+                        <TextView android:id="@+id/favTitle" style="@style/GS.RowTitle" android:text="Canais favoritos" />
+                        <com.gs.iptv.HRow android:id="@+id/favRow" android:layout_width="match_parent" android:layout_height="wrap_content"
+                            android:clipToPadding="false" android:paddingVertical="6dp" />
 
-        <TextView
-            android:id="@+id/empty"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_gravity="center"
-            android:gravity="center"
-            android:textColor="@color/pink_text"
-            android:textSize="20sp"
-            android:visibility="gone" />
+                        <TextView android:id="@+id/newTitle" style="@style/GS.RowTitle" android:text="Lançamentos" />
+                        <com.gs.iptv.HRow android:id="@+id/newRow" android:layout_width="match_parent" android:layout_height="wrap_content"
+                            android:clipToPadding="false" android:paddingVertical="6dp" />
+                    </LinearLayout>
+                </ScrollView>
 
-        <LinearLayout
-            android:id="@+id/sectionPanel"
-            android:layout_width="680dp"
-            android:layout_height="wrap_content"
-            android:layout_gravity="center"
-            android:background="@drawable/bg_dark_box"
-            android:orientation="vertical"
-            android:padding="28dp"
-            android:visibility="gone">
+                <!-- TV AO VIVO -->
+                <LinearLayout android:id="@+id/pageTv" android:layout_width="match_parent" android:layout_height="match_parent"
+                    android:orientation="horizontal" android:visibility="gone">
 
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="Escolha o que baixar"
-                android:textSize="28sp"
-                android:textStyle="bold" />
+                    <com.gs.iptv.TvList android:id="@+id/tvCats" android:layout_width="220dp" android:layout_height="match_parent"
+                        android:background="#14161C" android:clipToPadding="false" android:paddingHorizontal="10dp" android:paddingVertical="8dp" />
 
-            <TextView
-                android:id="@+id/panelHint"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="6dp"
-                android:layout_marginBottom="8dp"
-                android:text="Baixe uma parte de cada vez para a TV não travar."
-                android:textColor="@color/pink_text"
-                android:textSize="17sp" />
+                    <com.gs.iptv.TvList android:id="@+id/tvList" android:layout_width="0dp" android:layout_height="match_parent"
+                        android:layout_weight="1" android:clipToPadding="false" android:paddingHorizontal="18dp" android:paddingVertical="8dp" />
 
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="64dp"
-                android:layout_marginTop="10dp"
-                android:background="#33000000"
-                android:gravity="center_vertical"
-                android:orientation="horizontal"
-                android:paddingHorizontal="18dp">
+                    <LinearLayout android:id="@+id/infoPanel" android:layout_width="320dp" android:layout_height="match_parent"
+                        android:background="@drawable/bg_info_panel" android:orientation="vertical" android:padding="24dp">
+                        <FrameLayout android:layout_width="96dp" android:layout_height="96dp" android:background="@drawable/bg_card">
+                            <TextView android:id="@+id/infoInitials" android:layout_width="match_parent" android:layout_height="match_parent"
+                                android:gravity="center" android:textSize="30sp" android:textStyle="bold" />
+                            <ImageView android:id="@+id/infoLogo" android:layout_width="match_parent" android:layout_height="match_parent"
+                                android:importantForAccessibility="no" android:padding="10dp" android:scaleType="fitCenter" />
+                        </FrameLayout>
+                        <TextView android:id="@+id/infoName" android:layout_width="match_parent" android:layout_height="wrap_content"
+                            android:layout_marginTop="14dp" android:ellipsize="end" android:maxLines="2" android:textSize="24sp" android:textStyle="bold" />
+                        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="8dp"
+                            android:background="@drawable/bg_live" android:paddingHorizontal="8dp" android:paddingVertical="2dp"
+                            android:text="AO VIVO" android:textSize="12sp" android:textStyle="bold" />
+                        <TextView android:id="@+id/infoProg" android:layout_width="match_parent" android:layout_height="wrap_content"
+                            android:layout_marginTop="14dp" android:ellipsize="end" android:maxLines="2" android:textSize="19sp" android:textStyle="bold" />
+                        <TextView android:id="@+id/infoTime" android:layout_width="match_parent" android:layout_height="wrap_content"
+                            android:layout_marginTop="4dp" android:textColor="#B9BDC8" android:textSize="14sp" />
+                        <TextView android:id="@+id/infoNext" android:layout_width="match_parent" android:layout_height="wrap_content"
+                            android:layout_marginTop="10dp" android:textColor="#8B8F9C" android:textSize="14sp" />
+                        <View android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" />
+                        <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
+                            android:background="@drawable/bg_white_btn" android:gravity="center" android:paddingVertical="11dp"
+                            android:text="OK  ▶  Assistir" android:textColor="#111318" android:textSize="16sp" android:textStyle="bold" />
+                        <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="8dp"
+                            android:background="@drawable/bg_card" android:gravity="center" android:paddingVertical="10dp"
+                            android:text="Segure OK  ★  Favoritar" android:textColor="#D0D3DB" android:textSize="15sp" />
+                    </LinearLayout>
+                </LinearLayout>
 
-                <TextView
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:text="Canais ao vivo"
-                    android:textSize="22sp"
-                    android:textStyle="bold" />
+                <!-- FILMES / SÉRIES -->
+                <LinearLayout android:id="@+id/pageVod" android:layout_width="match_parent" android:layout_height="match_parent"
+                    android:orientation="vertical" android:paddingHorizontal="20dp" android:visibility="gone">
+                    <com.gs.iptv.HRow android:id="@+id/chips" android:layout_width="match_parent" android:layout_height="wrap_content"
+                        android:clipToPadding="false" android:paddingHorizontal="8dp" android:paddingVertical="6dp" />
+                    <com.gs.iptv.TvList android:id="@+id/vodGrid" android:layout_width="match_parent" android:layout_height="0dp"
+                        android:layout_weight="1" android:clipToPadding="false" android:paddingVertical="6dp" />
+                </LinearLayout>
 
-                <TextView
-                    android:id="@+id/statusLive"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginEnd="18dp"
-                    android:textColor="@color/pink_text"
-                    android:textSize="16sp" />
+                <!-- JOGOS -->
+                <LinearLayout android:id="@+id/pageGames" android:layout_width="match_parent" android:layout_height="match_parent"
+                    android:orientation="vertical" android:paddingHorizontal="20dp" android:visibility="gone">
+                    <com.gs.iptv.HRow android:id="@+id/dayChips" android:layout_width="match_parent" android:layout_height="wrap_content"
+                        android:clipToPadding="false" android:paddingHorizontal="8dp" android:paddingVertical="6dp" />
+                    <com.gs.iptv.TvList android:id="@+id/gamesList" android:layout_width="match_parent" android:layout_height="0dp"
+                        android:layout_weight="1" android:clipToPadding="false" android:paddingHorizontal="8dp" android:paddingVertical="8dp" />
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginStart="8dp"
+                        android:layout_marginBottom="12dp" android:text="OK no jogo: assistir agora ou agendar (o canal abre 5 minutos antes)"
+                        android:textColor="#8B8F9C" android:textSize="14sp" />
+                </LinearLayout>
 
-                <Button
-                    android:id="@+id/btnLive"
-                    android:layout_width="150dp"
-                    android:layout_height="48dp"
-                    android:background="@drawable/bg_button"
-                    android:text="Baixar"
-                    android:textAllCaps="false"
-                    android:textColor="#3A2400"
-                    android:textSize="17sp"
-                    android:textStyle="bold" />
-            </LinearLayout>
+                <!-- KIDS -->
+                <LinearLayout android:id="@+id/pageKids" android:layout_width="match_parent" android:layout_height="match_parent"
+                    android:background="@drawable/bg_kids" android:orientation="vertical" android:paddingHorizontal="20dp" android:visibility="gone">
+                    <TextView android:id="@+id/kidsBadge" android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:layout_marginStart="8dp" android:layout_marginTop="4dp" android:background="@drawable/bg_safe_badge"
+                        android:paddingHorizontal="12dp" android:paddingVertical="4dp" android:text="Modo seguro ligado"
+                        android:textColor="#06261A" android:textSize="13sp" android:textStyle="bold" android:visibility="gone" />
+                    <com.gs.iptv.TvList android:id="@+id/kidsGrid" android:layout_width="match_parent" android:layout_height="0dp"
+                        android:layout_weight="1" android:clipToPadding="false" android:paddingVertical="8dp" />
+                </LinearLayout>
 
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="64dp"
-                android:layout_marginTop="10dp"
-                android:background="#33000000"
-                android:gravity="center_vertical"
-                android:orientation="horizontal"
-                android:paddingHorizontal="18dp">
+                <!-- CONTA -->
+                <LinearLayout android:id="@+id/pageAccount" android:layout_width="match_parent" android:layout_height="match_parent"
+                    android:orientation="horizontal" android:paddingHorizontal="28dp" android:paddingBottom="20dp" android:visibility="gone">
+                    <LinearLayout android:id="@+id/accInfo" android:layout_width="420dp" android:layout_height="match_parent" android:orientation="vertical" />
+                    <ScrollView android:layout_width="0dp" android:layout_height="match_parent" android:layout_marginStart="30dp"
+                        android:layout_weight="1" android:scrollbars="none">
+                        <LinearLayout android:id="@+id/accPrefs" android:layout_width="match_parent" android:layout_height="wrap_content"
+                            android:orientation="vertical" />
+                    </ScrollView>
+                </LinearLayout>
 
-                <TextView
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:text="Filmes"
-                    android:textSize="22sp"
-                    android:textStyle="bold" />
+                <!-- Painel para baixar cada parte (primeira vez) -->
+                <LinearLayout android:id="@+id/sectionPanel" android:layout_width="640dp" android:layout_height="wrap_content"
+                    android:layout_gravity="center" android:background="@drawable/bg_card" android:orientation="vertical"
+                    android:padding="28dp" android:visibility="gone">
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Escolha o que baixar"
+                        android:textSize="26sp" android:textStyle="bold" />
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="6dp"
+                        android:layout_marginBottom="8dp" android:text="Baixe uma parte de cada vez para a TV não travar."
+                        android:textColor="#8B8F9C" android:textSize="16sp" />
+                    <LinearLayout style="@style/GS.PanelRow"><TextView style="@style/GS.PanelLabel" android:text="Canais ao vivo" />
+                        <TextView android:id="@+id/statusLive" style="@style/GS.PanelStatus" /><Button android:id="@+id/btnLive" style="@style/GS.PanelBtn" /></LinearLayout>
+                    <LinearLayout style="@style/GS.PanelRow"><TextView style="@style/GS.PanelLabel" android:text="Filmes" />
+                        <TextView android:id="@+id/statusMovie" style="@style/GS.PanelStatus" /><Button android:id="@+id/btnMovie" style="@style/GS.PanelBtn" /></LinearLayout>
+                    <LinearLayout style="@style/GS.PanelRow"><TextView style="@style/GS.PanelLabel" android:text="Séries" />
+                        <TextView android:id="@+id/statusSeries" style="@style/GS.PanelStatus" /><Button android:id="@+id/btnSeries" style="@style/GS.PanelBtn" /></LinearLayout>
+                </LinearLayout>
 
-                <TextView
-                    android:id="@+id/statusMovie"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginEnd="18dp"
-                    android:textColor="@color/pink_text"
-                    android:textSize="16sp" />
+                <TextView android:id="@+id/empty" android:layout_width="wrap_content" android:layout_height="wrap_content"
+                    android:layout_gravity="center" android:gravity="center" android:textColor="#B9BDC8" android:textSize="19sp" android:visibility="gone" />
 
-                <Button
-                    android:id="@+id/btnMovie"
-                    android:layout_width="150dp"
-                    android:layout_height="48dp"
-                    android:background="@drawable/bg_button"
-                    android:text="Baixar"
-                    android:textAllCaps="false"
-                    android:textColor="#3A2400"
-                    android:textSize="17sp"
-                    android:textStyle="bold" />
-            </LinearLayout>
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="64dp"
-                android:layout_marginTop="10dp"
-                android:background="#33000000"
-                android:gravity="center_vertical"
-                android:orientation="horizontal"
-                android:paddingHorizontal="18dp">
-
-                <TextView
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:text="Séries"
-                    android:textSize="22sp"
-                    android:textStyle="bold" />
-
-                <TextView
-                    android:id="@+id/statusSeries"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginEnd="18dp"
-                    android:textColor="@color/pink_text"
-                    android:textSize="16sp" />
-
-                <Button
-                    android:id="@+id/btnSeries"
-                    android:layout_width="150dp"
-                    android:layout_height="48dp"
-                    android:background="@drawable/bg_button"
-                    android:text="Baixar"
-                    android:textAllCaps="false"
-                    android:textColor="#3A2400"
-                    android:textSize="17sp"
-                    android:textStyle="bold" />
-            </LinearLayout>
-        </LinearLayout>
-
-        <LinearLayout
-            android:id="@+id/loading"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_gravity="center"
-            android:background="@drawable/bg_dark_box"
-            android:gravity="center_horizontal"
-            android:orientation="vertical"
-            android:padding="24dp"
-            android:visibility="gone">
-
-            <ProgressBar
-                android:layout_width="56dp"
-                android:layout_height="56dp"
-                android:indeterminateTint="@color/gold" />
-
-            <TextView
-                android:id="@+id/loadingText"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="14dp"
-                android:text="Carregando lista…"
-                android:textSize="18sp" />
+                <LinearLayout android:id="@+id/loading" android:layout_width="wrap_content" android:layout_height="wrap_content"
+                    android:layout_gravity="center" android:background="@drawable/bg_card" android:gravity="center_horizontal"
+                    android:orientation="vertical" android:padding="24dp" android:visibility="gone">
+                    <ProgressBar android:layout_width="52dp" android:layout_height="52dp" android:indeterminateTint="#E3162A" />
+                    <TextView android:id="@+id/loadingText" android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:layout_marginTop="12dp" android:textSize="17sp" />
+                </LinearLayout>
+            </FrameLayout>
         </LinearLayout>
     </FrameLayout>
-
-    <TextView
-        android:id="@+id/hint"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="8dp"
-        android:text="OK = assistir · Segure OK = favorito"
-        android:textColor="@color/pink_text"
-        android:textSize="13sp" />
 </LinearLayout>
-</FrameLayout>

@@ -38,11 +38,15 @@ object Games {
         "Brazilian Cup", "UEFA Champions League", "UEFA Europa League", "English Premier League",
         "Spanish La Liga", "Italian Serie A", "German Bundesliga", "French Ligue 1",
     )
-    private var cache: Pair<Long, List<Game>>? = null
+    private val cache = HashMap<Int, Pair<Long, List<Game>>>()
 
-    suspend fun today(force: Boolean = false): List<Game> = withContext(Dispatchers.IO) {
-        cache?.let { (t, g) -> if (!force && System.currentTimeMillis() - t < 20 * 60_000) return@withContext g }
-        val day = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date())
+    suspend fun today(force: Boolean = false): List<Game> = day(0, force)
+
+    /** Jogos de um dia: 0 = hoje, -1 = ontem, 1 = amanhã... */
+    suspend fun day(offset: Int, force: Boolean = false): List<Game> = withContext(Dispatchers.IO) {
+        cache[offset]?.let { (t, g) -> if (!force && System.currentTimeMillis() - t < 20 * 60_000) return@withContext g }
+        val cal = Calendar.getInstance().apply { add(Calendar.DAY_OF_YEAR, offset) }
+        val day = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(cal.time)
         val out = LinkedHashMap<String, Game>()
         val tasks = mutableListOf<String>()
         tasks.add("https://www.thesportsdb.com/api/v1/json/$KEY/eventsday.php?d=$day&s=Soccer")
@@ -54,12 +58,13 @@ object Games {
         }
         // só jogos de hoje no horário local (a fonte usa horário UTC)
         val startOfDay = Calendar.getInstance().apply {
+            add(Calendar.DAY_OF_YEAR, offset)
             set(Calendar.HOUR_OF_DAY, 0); set(Calendar.MINUTE, 0); set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0)
         }.timeInMillis
         val list = out.values
             .filter { it.startMs == 0L || it.startMs in startOfDay until startOfDay + 24 * 3600_000L + 3 * 3600_000L }
             .sortedBy { if (it.startMs == 0L) Long.MAX_VALUE else it.startMs }
-        cache = System.currentTimeMillis() to list
+        cache[offset] = System.currentTimeMillis() to list
         Diag.log("Jogos do dia: ${list.size} jogos")
         list
     }

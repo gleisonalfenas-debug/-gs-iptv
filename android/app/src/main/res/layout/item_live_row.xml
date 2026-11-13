@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_marginBottom="8dp"
+    android:background="@drawable/bg_item"
+    android:focusable="true"
+    android:gravity="center_vertical"
+    android:orientation="horizontal"
+    android:paddingHorizontal="14dp"
+    android:paddingVertical="10dp">
+
+    <TextView android:id="@+id/num" android:layout_width="40dp" android:layout_height="wrap_content"
+        android:textColor="#8B8F9C" android:textSize="15sp" android:textStyle="bold" />
+
+    <FrameLayout android:layout_width="46dp" android:layout_height="46dp" android:background="@drawable/bg_card">
+        <TextView android:id="@+id/initials" android:layout_width="match_parent" android:layout_height="match_parent"
+            android:gravity="center" android:textSize="15sp" android:textStyle="bold" />
+        <ImageView android:id="@+id/logo" android:layout_width="match_parent" android:layout_height="match_parent"
+            android:importantForAccessibility="no" android:padding="4dp" android:scaleType="fitCenter" />
+    </FrameLayout>
+
+    <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_marginStart="14dp"
+        android:layout_weight="1" android:orientation="vertical">
+
+        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal">
+            <TextView android:id="@+id/name" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1"
+                android:ellipsize="end" android:maxLines="1" android:textSize="17sp" android:textStyle="bold" />
+            <TextView android:id="@+id/time" android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:textColor="#8B8F9C" android:textSize="13sp" />
+        </LinearLayout>
+
+        <TextView android:id="@+id/prog" android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:layout_marginTop="2dp" android:ellipsize="end" android:maxLines="1" android:textColor="#D0D3DB" android:textSize="14sp" />
+
+        <ProgressBar android:id="@+id/bar" style="?android:attr/progressBarStyleHorizontal"
+            android:layout_width="match_parent" android:layout_height="4dp" android:layout_marginTop="5dp"
+            android:max="1000" android:progressDrawable="@drawable/progress_red" />
+
+        <TextView android:id="@+id/next" android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:layout_marginTop="3dp" android:ellipsize="end" android:maxLines="1" android:textColor="#8B8F9C" android:textSize="12sp" />
+    </LinearLayout>
+</LinearLayout>
