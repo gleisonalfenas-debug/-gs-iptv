@@ -133,7 +133,7 @@ object Store {
         e.putString("name", f["name"].orEmpty().trim().ifEmpty { f["user"].orEmpty().ifEmpty { "Minha lista" } })
             .putString("epg", f["epg"].orEmpty().trim())
             .commit()
-        cacheFile(ctx).delete()
+        clearAll(ctx)
         return true
     }
 
@@ -150,41 +150,62 @@ object Store {
     fun lastUrl(ctx: Context): String? = prefs(ctx).getString("last", null)
     fun setLastUrl(ctx: Context, url: String) = prefs(ctx).edit().putString("last", url).apply()
 
-    // ---------- Carregar lista ----------
-    private fun cacheFile(ctx: Context) = File(ctx.filesDir, "items.tsv")
+    // ---------- Carregar lista (uma seção de cada vez) ----------
+    private fun cacheFile(ctx: Context, kind: Kind) = File(ctx.filesDir, "items_${kind.name.lowercase()}.tsv")
 
-    /**
-     * Baixa (se preciso) e organiza a lista. [progress] recebe mensagens para mostrar na tela.
-     * Usa uma cópia salva por 12 horas para abrir rápido.
-     */
-    suspend fun load(ctx: Context, force: Boolean = false, progress: (String) -> Unit = {}): List<Item> =
+    private val loaded = HashMap<Kind, List<Item>>()
+
+    fun isLoaded(kind: Kind) = synchronized(loaded) { loaded.containsKey(kind) }
+    fun count(kind: Kind) = synchronized(loaded) { loaded[kind]?.size ?: 0 }
+
+    /** Já existe cópia salva recente desta seção? */
+    fun hasFreshCache(ctx: Context, kind: Kind): Boolean {
+        val f = cacheFile(ctx, kind)
+        return f.exists() && System.currentTimeMillis() - f.lastModified() < CACHE_HOURS * 3600_000L
+    }
+
+    /** Apaga tudo (usado quando entra uma lista ou login novo). */
+    fun clearAll(ctx: Context) {
+        Kind.values().forEach { cacheFile(ctx, it).delete() }
+        synchronized(loaded) { loaded.clear() }
+        items = emptyList()
+        tabs = emptyMap()
+    }
+
+    /** Baixa (ou abre a cópia salva) só de uma seção: canais, filmes ou séries. */
+    suspend fun loadSection(ctx: Context, kind: Kind, force: Boolean = false, progress: (String) -> Unit = {}): List<Item> =
         withContext(Dispatchers.IO) {
             if (playlistUrl(ctx) == null) throw IllegalStateException("Nenhuma lista configurada")
-            val cache = cacheFile(ctx)
-            val stale = !cache.exists() || cache.length() == 0L ||
-                System.currentTimeMillis() - cache.lastModified() > CACHE_HOURS * 3600_000L
-            var list: List<Item>? = null
-            if (force || stale) {
+            val cache = cacheFile(ctx, kind)
+            if (force || !hasFreshCache(ctx, kind)) {
                 try {
-                    list = if (isXtream(ctx)) Xtream.loadAll(ctx, progress) else downloadM3u(ctx, progress)
-                    if (list.isEmpty()) throw java.io.IOException("A lista veio vazia. Confira o link ou os dados.")
-                    progress("Salvando ${list.size} itens…")
-                    writeCache(cache, list)
+                    if (isXtream(ctx)) {
+                        val list = Xtream.loadSection(ctx, kind, progress)
+                        progress("Salvando ${list.size} itens…")
+                        writeCache(cache, list)
+                    } else {
+                        downloadM3uSplit(ctx, progress) // a M3U vem inteira: separa direto em arquivos
+                    }
                 } catch (e: Exception) {
                     if (!cache.exists()) throw e // sem internet e sem cópia salva
-                    list = null
                 }
             }
-            if (list == null) {
-                progress("Abrindo lista salva…")
-                list = readCache(cache)
-            }
-            progress("Organizando ${list.size} itens…")
-            buildTabs(list)
-            items = list
+            progress("Abrindo ${label(kind)}…")
+            val list = if (cache.exists()) readCache(cache) else emptyList()
             groupPool.clear()
+            synchronized(loaded) { loaded[kind] = list }
+            progress("Organizando ${list.size} itens…")
+            rebuild()
             list
         }
+
+    fun label(kind: Kind) = when (kind) { Kind.LIVE -> "canais ao vivo"; Kind.MOVIE -> "filmes"; Kind.SERIES -> "séries" }
+
+    private fun rebuild() {
+        val all = synchronized(loaded) { Kind.values().flatMap { loaded[it] ?: emptyList() } }
+        buildTabs(all)
+        items = all
+    }
 
     private fun buildTabs(list: List<Item>) {
         val map = HashMap<Tab, TabData>()
@@ -219,7 +240,8 @@ object Store {
         )
     }
 
-    private fun downloadM3u(ctx: Context, progress: (String) -> Unit): List<Item> {
+    /** Baixa a M3U e grava canais, filmes e séries em arquivos separados, sem segurar tudo na memória. */
+    private fun downloadM3uSplit(ctx: Context, progress: (String) -> Unit) {
         val url = playlistUrl(ctx)!!
         progress("Conectando ao servidor da lista…")
         val conn = Net.connect(url, 30_000)
@@ -238,18 +260,29 @@ object Store {
                 return n
             }
         }
-        return counting.bufferedReader().use { parseM3u(it) }
+        val tmps = Kind.values().associateWith { File(ctx.filesDir, "split_${it.name}.tmp") }
+        val writers = tmps.mapValues { it.value.bufferedWriter() }
+        try {
+            counting.bufferedReader().use { r -> parseM3u(r) { item -> writers[item.kind]!!.write(line(item)) } }
+        } finally {
+            writers.values.forEach { it.close() }
+        }
+        for (k in Kind.values()) {
+            val f = cacheFile(ctx, k)
+            f.delete()
+            tmps[k]!!.renameTo(f)
+        }
+        groupPool.clear()
     }
+
+    private fun line(i: Item) =
+        "${i.kind.ordinal}\t${i.number}\t${clean(i.name)}\t${clean(i.group)}\t${clean(i.logo)}\t${clean(i.url)}\n"
 
     private fun clean(s: String) = s.replace('\t', ' ').replace('\n', ' ').replace('\r', ' ')
 
     private fun writeCache(file: File, list: List<Item>) {
         val tmp = File(file.parentFile, "items.tmp")
-        tmp.bufferedWriter().use { w ->
-            for (i in list) {
-                w.write("${i.kind.ordinal}\t${i.number}\t${clean(i.name)}\t${clean(i.group)}\t${clean(i.logo)}\t${clean(i.url)}\n")
-            }
-        }
+        tmp.bufferedWriter().use { w -> for (i in list) w.write(line(i)) }
         file.delete()
         tmp.renameTo(file)
     }
@@ -271,8 +304,7 @@ object Store {
     private val reGroup = Regex("group-title=\"([^\"]*)\"")
     private val reName = Regex("tvg-name=\"([^\"]*)\"")
 
-    fun parseM3u(reader: BufferedReader): List<Item> {
-        val out = ArrayList<Item>()
+    fun parseM3u(reader: BufferedReader, onItem: (Item) -> Unit) {
         var name = ""; var logo = ""; var group = ""; var pending = false
         var liveNumber = 0
         reader.forEachLine { raw ->
@@ -290,12 +322,11 @@ object Store {
                 line.isNotEmpty() && !line.startsWith("#") && pending -> {
                     val kind = kindOf(line, group)
                     val n = if (kind == Kind.LIVE) ++liveNumber else 0
-                    out.add(make(name.ifEmpty { "Sem nome" }, line, logo, group.ifEmpty { "Outros" }, kind, n))
+                    onItem(make(name.ifEmpty { "Sem nome" }, line, logo, group.ifEmpty { "Outros" }, kind, n))
                     pending = false
                 }
             }
         }
-        return out
     }
 
     private fun kindOf(url: String, group: String): Kind {

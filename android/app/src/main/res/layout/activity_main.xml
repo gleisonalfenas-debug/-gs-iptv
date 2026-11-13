@@ -188,6 +188,145 @@
             android:visibility="gone" />
 
         <LinearLayout
+            android:id="@+id/sectionPanel"
+            android:layout_width="680dp"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:background="@drawable/bg_dark_box"
+            android:orientation="vertical"
+            android:padding="28dp"
+            android:visibility="gone">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Escolha o que baixar"
+                android:textSize="28sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/panelHint"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="6dp"
+                android:layout_marginBottom="8dp"
+                android:text="Baixe uma parte de cada vez para a TV não travar."
+                android:textColor="@color/pink_text"
+                android:textSize="17sp" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="64dp"
+                android:layout_marginTop="10dp"
+                android:background="#33000000"
+                android:gravity="center_vertical"
+                android:orientation="horizontal"
+                android:paddingHorizontal="18dp">
+
+                <TextView
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="Canais ao vivo"
+                    android:textSize="22sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/statusLive"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginEnd="18dp"
+                    android:textColor="@color/pink_text"
+                    android:textSize="16sp" />
+
+                <Button
+                    android:id="@+id/btnLive"
+                    android:layout_width="150dp"
+                    android:layout_height="48dp"
+                    android:background="@drawable/bg_button"
+                    android:text="Baixar"
+                    android:textAllCaps="false"
+                    android:textColor="#3A2400"
+                    android:textSize="17sp"
+                    android:textStyle="bold" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="64dp"
+                android:layout_marginTop="10dp"
+                android:background="#33000000"
+                android:gravity="center_vertical"
+                android:orientation="horizontal"
+                android:paddingHorizontal="18dp">
+
+                <TextView
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="Filmes"
+                    android:textSize="22sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/statusMovie"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginEnd="18dp"
+                    android:textColor="@color/pink_text"
+                    android:textSize="16sp" />
+
+                <Button
+                    android:id="@+id/btnMovie"
+                    android:layout_width="150dp"
+                    android:layout_height="48dp"
+                    android:background="@drawable/bg_button"
+                    android:text="Baixar"
+                    android:textAllCaps="false"
+                    android:textColor="#3A2400"
+                    android:textSize="17sp"
+                    android:textStyle="bold" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="64dp"
+                android:layout_marginTop="10dp"
+                android:background="#33000000"
+                android:gravity="center_vertical"
+                android:orientation="horizontal"
+                android:paddingHorizontal="18dp">
+
+                <TextView
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="Séries"
+                    android:textSize="22sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/statusSeries"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginEnd="18dp"
+                    android:textColor="@color/pink_text"
+                    android:textSize="16sp" />
+
+                <Button
+                    android:id="@+id/btnSeries"
+                    android:layout_width="150dp"
+                    android:layout_height="48dp"
+                    android:background="@drawable/bg_button"
+                    android:text="Baixar"
+                    android:textAllCaps="false"
+                    android:textColor="#3A2400"
+                    android:textSize="17sp"
+                    android:textStyle="bold" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <LinearLayout
             android:id="@+id/loading"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"

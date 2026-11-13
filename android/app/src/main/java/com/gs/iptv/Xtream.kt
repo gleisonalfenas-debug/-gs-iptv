@@ -16,46 +16,47 @@ object Xtream {
     private fun api(l: Store.XtreamLogin, action: String, extra: String = "") =
         "${l.server}/player_api.php?username=${enc(l.user)}&password=${enc(l.pass)}&action=$action$extra"
 
-    fun loadAll(ctx: Context, progress: (String) -> Unit): List<Item> {
+    /** Baixa só uma seção: canais ao vivo, filmes ou séries. */
+    fun loadSection(ctx: Context, kind: Kind, progress: (String) -> Unit): List<Item> {
         val l = Store.xtreamLogin(ctx)
         val out = ArrayList<Item>()
-
         progress("Entrando no servidor…")
-        val liveCats = categories(l, "get_live_categories")
-        progress("Baixando canais ao vivo…")
-        var n = 0
-        readArray(api(l, "get_live_streams")) { o ->
-            val id = o["stream_id"] ?: return@readArray
-            out.add(Store.make(o["name"].orEmpty(), "${Store.XT}live/$id.ts",
-                o["stream_icon"].orEmpty(), liveCats[o["category_id"]] ?: "Outros", Kind.LIVE, ++n))
-            if (n % 500 == 0) progress("Baixando canais ao vivo… $n")
+        when (kind) {
+            Kind.LIVE -> {
+                val cats = categories(l, "get_live_categories")
+                progress("Baixando canais ao vivo…")
+                var n = 0
+                readArray(api(l, "get_live_streams")) { o ->
+                    val id = o["stream_id"] ?: return@readArray
+                    out.add(Store.make(o["name"].orEmpty(), "${Store.XT}live/$id.ts",
+                        o["stream_icon"].orEmpty(), cats[o["category_id"]] ?: "Outros", Kind.LIVE, ++n))
+                    if (n % 500 == 0) progress("Baixando canais ao vivo… $n")
+                }
+            }
+            Kind.MOVIE -> {
+                val cats = categories(l, "get_vod_categories")
+                progress("Baixando filmes…")
+                var m = 0
+                readArray(api(l, "get_vod_streams")) { o ->
+                    val id = o["stream_id"] ?: return@readArray
+                    val ext = o["container_extension"].orEmpty().ifEmpty { "mp4" }
+                    out.add(Store.make(o["name"].orEmpty(), "${Store.XT}movie/$id.$ext",
+                        o["stream_icon"].orEmpty(), cats[o["category_id"]] ?: "Filmes", Kind.MOVIE, 0))
+                    if (++m % 1000 == 0) progress("Baixando filmes… $m")
+                }
+            }
+            Kind.SERIES -> {
+                val cats = categories(l, "get_series_categories")
+                progress("Baixando séries…")
+                var s = 0
+                readArray(api(l, "get_series")) { o ->
+                    val id = o["series_id"] ?: return@readArray
+                    out.add(Store.make(o["name"].orEmpty(), "$SERIES_PREFIX$id",
+                        o["cover"].orEmpty(), cats[o["category_id"]] ?: "Séries", Kind.SERIES, 0))
+                    if (++s % 500 == 0) progress("Baixando séries… $s")
+                }
+            }
         }
-
-        try {
-            val vodCats = categories(l, "get_vod_categories")
-            progress("Baixando filmes…")
-            var m = 0
-            readArray(api(l, "get_vod_streams")) { o ->
-                val id = o["stream_id"] ?: return@readArray
-                val ext = o["container_extension"].orEmpty().ifEmpty { "mp4" }
-                out.add(Store.make(o["name"].orEmpty(), "${Store.XT}movie/$id.$ext",
-                    o["stream_icon"].orEmpty(), vodCats[o["category_id"]] ?: "Filmes", Kind.MOVIE, 0))
-                if (++m % 1000 == 0) progress("Baixando filmes… $m")
-            }
-        } catch (_: Exception) { /* sem filmes no plano: segue */ }
-
-        try {
-            val serCats = categories(l, "get_series_categories")
-            progress("Baixando séries…")
-            var s = 0
-            readArray(api(l, "get_series")) { o ->
-                val id = o["series_id"] ?: return@readArray
-                out.add(Store.make(o["name"].orEmpty(), "$SERIES_PREFIX$id",
-                    o["cover"].orEmpty(), serCats[o["category_id"]] ?: "Séries", Kind.SERIES, 0))
-                if (++s % 500 == 0) progress("Baixando séries… $s")
-            }
-        } catch (_: Exception) { }
-
         return out
     }
 

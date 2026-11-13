@@ -43,6 +43,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var empty: TextView
     private lateinit var loading: View
     private lateinit var loadingText: TextView
+    private lateinit var sectionPanel: View
     private lateinit var clock: TextView
     private lateinit var preview: PlayerView
     private lateinit var nowName: TextView
@@ -72,7 +73,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private val sendList = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { r ->
-        if (r.resultCode == RESULT_OK || !loaded) reload(force = true)
+        if (r.resultCode == RESULT_OK) onNewList() else if (!loaded) startup()
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -98,7 +99,7 @@ class MainActivity : AppCompatActivity() {
 
         findViewById<View>(R.id.btnSearch).setOnClickListener { openSearch() }
         findViewById<View>(R.id.btnSend).setOnClickListener { openSendList() }
-        findViewById<View>(R.id.btnRefresh).setOnClickListener { reload(force = true) }
+        findViewById<View>(R.id.btnRefresh).setOnClickListener { refreshAll() }
 
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
@@ -119,7 +120,8 @@ class MainActivity : AppCompatActivity() {
                 .setPositiveButton("OK", null)
                 .show()
         }
-        if (!Store.hasList(this)) openSendList() else reload(force = false)
+        setupPanel()
+        if (!Store.hasList(this)) openSendList() else startup()
     }
 
     // ---------------- Abas ----------------
@@ -184,7 +186,18 @@ class MainActivity : AppCompatActivity() {
     private fun showTab(t: Tab) {
         tab = t
         tabViews.forEachIndexed { i, v -> v.isSelected = i == t.ordinal }
-        if (!loaded) return
+        val missing = kindsFor(t).filterNot { Store.isLoaded(it) }
+        if (missing.isNotEmpty()) {
+            // Seção ainda não baixada: se já tem cópia salva abre direto, senão mostra o painel
+            if (missing.all { Store.hasFreshCache(this, it) }) { loadKinds(missing, force = false); return }
+            liveView.visibility = View.GONE
+            vodView.visibility = View.GONE
+            empty.visibility = View.GONE
+            pausePreview()
+            showPanel(missing.first())
+            return
+        }
+        sectionPanel.visibility = View.GONE
         val data = Store.tab(t)
         val list = data.items
         empty.visibility = if (list.isEmpty()) View.VISIBLE else View.GONE
@@ -227,32 +240,96 @@ class MainActivity : AppCompatActivity() {
         gridList.scrollToPosition(0)
     }
 
-    // ---------------- Carregar lista ----------------
-    private fun reload(force: Boolean) {
-        findViewById<TextView>(R.id.brand).text = "GS IPTV  ·  ${Store.listName(this)}"
-        lifecycleScope.launch {
-            loading.visibility = View.VISIBLE
-            loadingText.text = "Carregando lista…"
-            empty.visibility = View.GONE
-            try {
-                Store.load(this@MainActivity, force) { msg -> runOnUiThread { loadingText.text = msg } }
-                loaded = true
-                showTab(tab)
-                if (current == null) {
-                    val last = Store.lastUrl(this@MainActivity)
-                    Store.items.firstOrNull { it.url == last && it.kind == Kind.LIVE }?.let { playPreview(it) }
-                }
-                tabViews[tab.ordinal].requestFocus()
-            } catch (e: OutOfMemoryError) {
-                empty.visibility = View.VISIBLE
-                empty.text = "Sua lista é grande demais para a memória desta TV.\nTente uma lista só com canais ao vivo."
-            } catch (e: Exception) {
-                empty.visibility = View.VISIBLE
-                empty.text = "Não foi possível carregar a lista.\n${e.message ?: ""}\n\nAperte o ícone do celular para enviar outra lista."
-            } finally {
-                loading.visibility = View.GONE
+    // ---------------- Carregar lista (uma seção de cada vez) ----------------
+    private fun kindsFor(t: Tab): List<Kind> = when (t) {
+        Tab.TV -> listOf(Kind.LIVE)
+        Tab.MOVIES -> listOf(Kind.MOVIE)
+        Tab.SERIES -> listOf(Kind.SERIES)
+        Tab.KIDS, Tab.ANIME -> listOf(Kind.MOVIE, Kind.SERIES)
+    }
+
+    private fun setupPanel() {
+        sectionPanel = findViewById(R.id.sectionPanel)
+        findViewById<View>(R.id.btnLive).setOnClickListener { loadKinds(listOf(Kind.LIVE), Store.isLoaded(Kind.LIVE)) }
+        findViewById<View>(R.id.btnMovie).setOnClickListener { loadKinds(listOf(Kind.MOVIE), Store.isLoaded(Kind.MOVIE)) }
+        findViewById<View>(R.id.btnSeries).setOnClickListener { loadKinds(listOf(Kind.SERIES), Store.isLoaded(Kind.SERIES)) }
+    }
+
+    private fun updatePanel() {
+        fun set(kind: Kind, status: Int, btn: Int) {
+            val st = findViewById<TextView>(status)
+            val b = findViewById<TextView>(btn)
+            when {
+                Store.isLoaded(kind) -> { st.text = "✓ ${Store.count(kind)} itens"; b.text = "Atualizar" }
+                Store.hasFreshCache(this, kind) -> { st.text = "Salvo na TV"; b.text = "Abrir" }
+                else -> { st.text = "Não baixado"; b.text = "Baixar" }
             }
         }
+        set(Kind.LIVE, R.id.statusLive, R.id.btnLive)
+        set(Kind.MOVIE, R.id.statusMovie, R.id.btnMovie)
+        set(Kind.SERIES, R.id.statusSeries, R.id.btnSeries)
+    }
+
+    private fun showPanel(focus: Kind?) {
+        updatePanel()
+        sectionPanel.visibility = View.VISIBLE
+        val id = when (focus) { Kind.LIVE -> R.id.btnLive; Kind.MOVIE -> R.id.btnMovie; Kind.SERIES -> R.id.btnSeries; null -> R.id.btnLive }
+        sectionPanel.post { findViewById<View>(id).requestFocus() }
+    }
+
+    /** Ao abrir: só abre o que já está salvo na TV; o resto espera o botão Baixar. */
+    private fun startup() {
+        findViewById<TextView>(R.id.brand).text = "GS IPTV  ·  ${Store.listName(this)}"
+        val cached = Kind.values().filter { Store.hasFreshCache(this, it) && !Store.isLoaded(it) }
+        if (cached.isNotEmpty()) loadKinds(cached, force = false) else { showTab(tab); tabViews[tab.ordinal].requestFocus() }
+    }
+
+    private fun loadKinds(kinds: List<Kind>, force: Boolean) {
+        lifecycleScope.launch {
+            sectionPanel.visibility = View.GONE
+            loading.visibility = View.VISIBLE
+            empty.visibility = View.GONE
+            var failed = false
+            for (k in kinds) {
+                loadingText.text = "Preparando ${Store.label(k)}…"
+                try {
+                    Store.loadSection(this@MainActivity, k, force) { msg -> runOnUiThread { loadingText.text = msg } }
+                } catch (e: OutOfMemoryError) {
+                    failed = true
+                    toast("Os ${Store.label(k)} são muitos para a memória desta TV.")
+                } catch (e: Exception) {
+                    failed = true
+                    toast("Não foi possível baixar ${Store.label(k)}: ${e.message ?: "erro de conexão"}")
+                }
+            }
+            loading.visibility = View.GONE
+            loaded = true
+            if (kinds.contains(Kind.LIVE) && current == null) {
+                val last = Store.lastUrl(this@MainActivity)
+                Store.tab(Tab.TV).items.firstOrNull { it.url == last }?.let { playPreview(it) }
+            }
+            if (failed) showPanel(kinds.first()) else showTab(tab)
+            if (sectionPanel.visibility != View.VISIBLE) tabViews[tab.ordinal].requestFocus()
+        }
+    }
+
+    /** Atualizar: baixa de novo o que já está aberto, ou mostra o painel. */
+    private fun refreshAll() {
+        val open = Kind.values().filter { Store.isLoaded(it) }
+        if (open.isEmpty()) showPanel(null) else loadKinds(open, force = true)
+    }
+
+    /** Lista ou login novo recebido pelo celular. */
+    private fun onNewList() {
+        toast("Login confirmado!")
+        current = null
+        player?.stop()
+        liveBadge.visibility = View.GONE
+        nowName.text = "Escolha um canal"
+        nowGroup.text = ""
+        tab = Tab.TV
+        findViewById<TextView>(R.id.brand).text = "GS IPTV  ·  ${Store.listName(this)}"
+        showTab(Tab.TV)
     }
 
     /** Série do Xtream: busca os episódios e mostra para escolher. */
@@ -363,7 +440,7 @@ class MainActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
-        ListServer.listener = { toast("Lista nova recebida!"); reload(force = true) }
+        ListServer.listener = { onNewList() }
     }
 
     override fun onPause() {
