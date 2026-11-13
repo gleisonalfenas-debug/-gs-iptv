@@ -34,15 +34,15 @@ class CardFan @JvmOverloads constructor(ctx: Context, attrs: AttributeSet? = nul
 
     private val side = 3
     private val slots = ArrayList<Card>()
-    private val cardW = dp(230)
-    private val cardH = dp(345)
-    private val spacing = dp(175).toFloat()
+    private val cardW = dp(175)
+    private val cardH = dp(262)
+    private val spacing = dp(135).toFloat()
 
     private inner class Card : FrameLayout(context) {
         val poster = ImageView(context).apply { scaleType = ImageView.ScaleType.CENTER_CROP }
         val title = TextView(context).apply {
             setTextColor(Color.WHITE)
-            setTextSize(TypedValue.COMPLEX_UNIT_SP, 18f)
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 15f)
             setTypeface(typeface, android.graphics.Typeface.BOLD)
             maxLines = 3
             setPadding(dp(14), dp(30), dp(14), dp(14))
@@ -83,8 +83,8 @@ class CardFan @JvmOverloads constructor(ctx: Context, attrs: AttributeSet? = nul
     init {
         isFocusable = true
         isFocusableInTouchMode = true
-        clipChildren = false
-        clipToPadding = false
+        clipChildren = true
+        clipToPadding = true
         for (i in 0 until side * 2 + 1) {
             val c = Card()
             addView(c, LayoutParams(cardW, cardH, Gravity.CENTER))
@@ -114,7 +114,7 @@ class CardFan @JvmOverloads constructor(ctx: Context, attrs: AttributeSet? = nul
             if (dir != 0) card.translationX = targetX + dir * spacing
             card.animate()
                 .translationX(targetX)
-                .translationY(a * dp(16).toFloat())
+                .translationY(a * dp(10).toFloat())
                 .rotation(off * 7f)
                 .scaleX(scale).scaleY(scale)
                 .alpha(if (off == 0) 1f else maxOf(0.2f, 0.65f - a * 0.15f))
