@@ -356,7 +356,6 @@ class MainActivity : AppCompatActivity() {
         row(R.id.seriesTitle, R.id.seriesRow, newSeries)
         row(R.id.kidsTitle, R.id.kidsRow, newKids)
     }
-    }
 
     // ================= TV ao vivo =================
     private fun setupTv() {
