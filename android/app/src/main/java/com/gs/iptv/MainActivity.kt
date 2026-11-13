@@ -45,6 +45,8 @@ class MainActivity : AppCompatActivity() {
     private lateinit var clock: TextView
     private lateinit var channelsList: TvList
     private lateinit var cardFan: CardFan
+    private lateinit var spiral: SpiralView
+    private lateinit var highlightView: View
     private lateinit var liveCatList: TvList
     private lateinit var vodCatList: TvList
 
@@ -82,6 +84,8 @@ class MainActivity : AppCompatActivity() {
         clock = findViewById(R.id.clock)
         channelsList = findViewById(R.id.channels)
         cardFan = findViewById(R.id.cardFan)
+        spiral = findViewById(R.id.spiral)
+        highlightView = findViewById(R.id.highlightView)
         findViewById<TextView>(R.id.brand).text = Store.listName(this).let { "GS IPTV  ·  $it" }
 
         buildTabs()
@@ -225,6 +229,9 @@ class MainActivity : AppCompatActivity() {
             if (item.url.startsWith(Xtream.SERIES_PREFIX)) openSeries(item)
             else openFullscreen(cardFan.items, pos)
         }
+        val hlTitle = findViewById<TextView>(R.id.hlTitle)
+        spiral.onPick = { _, pos -> openFullscreen(spiral.items, pos) }
+        spiral.onChange = { item -> hlTitle.text = item?.name ?: "" }
         cardFan.onChange = { item ->
             vodTitle.text = item?.name ?: ""
             vodMeta.text = item?.group ?: ""
@@ -247,6 +254,7 @@ class MainActivity : AppCompatActivity() {
         vodCatList.onLeft = {}
         vodCatList.onRight = { cardFan.requestFocus() }
         cardFan.onUp = toTabs
+        spiral.onUp = toTabs
         cardFan.onLeftEdge = { vodCatList.focusPosition(vodCatAdapter.selected) }
         channelsList.setHasFixedSize(true)
         channelsList.layoutManager = LinearLayoutManager(this)
@@ -268,6 +276,7 @@ class MainActivity : AppCompatActivity() {
         when {
             sectionPanel.visibility == View.VISIBLE -> showPanel(kindsFor(tab).firstOrNull { !Store.isLoaded(it) })
             tab == Tab.TV -> liveCatList.focusPosition(liveCatAdapter.selected)
+            tab == Tab.HIGHLIGHTS -> spiral.requestFocus()
             else -> vodCatList.focusPosition(vodCatAdapter.selected)
         }
     }
@@ -282,6 +291,7 @@ class MainActivity : AppCompatActivity() {
             if (missing.all { Store.hasFreshCache(this, it) }) { loadKinds(missing, force = false); return }
             liveView.visibility = View.GONE
             vodView.visibility = View.GONE
+            highlightView.visibility = View.GONE
             empty.visibility = View.GONE
             showPanel(missing.first())
             return
@@ -292,7 +302,13 @@ class MainActivity : AppCompatActivity() {
         empty.visibility = if (list.isEmpty()) View.VISIBLE else View.GONE
         empty.text = "Sua lista não tem conteúdo para a aba ${t.label}."
 
-        if (t == Tab.TV) {
+        highlightView.visibility = View.GONE
+        if (t == Tab.HIGHLIGHTS) {
+            liveView.visibility = View.GONE
+            vodView.visibility = View.GONE
+            highlightView.visibility = if (list.isEmpty()) View.GONE else View.VISIBLE
+            spiral.setItems(list)
+        } else if (t == Tab.TV) {
             liveView.visibility = View.VISIBLE
             vodView.visibility = View.GONE
             liveCats = Store.liveCategories(this)
@@ -328,6 +344,7 @@ class MainActivity : AppCompatActivity() {
         Tab.MOVIES -> listOf(Kind.MOVIE)
         Tab.SERIES -> listOf(Kind.SERIES)
         Tab.KIDS, Tab.ANIME -> listOf(Kind.MOVIE, Kind.SERIES)
+        Tab.HIGHLIGHTS -> listOf(Kind.MOVIE)
     }
 
     private fun setupPanel() {

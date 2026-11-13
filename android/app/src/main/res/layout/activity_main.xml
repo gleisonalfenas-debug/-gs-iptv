@@ -181,6 +181,40 @@
             </LinearLayout>
         </LinearLayout>
 
+        <!-- Destaques em espiral -->
+        <LinearLayout
+            android:id="@+id/highlightView"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:orientation="vertical"
+            android:visibility="gone">
+
+            <com.gs.iptv.SpiralView
+                android:id="@+id/spiral"
+                android:layout_width="match_parent"
+                android:layout_height="0dp"
+                android:layout_weight="1" />
+
+            <TextView
+                android:id="@+id/hlTitle"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:ellipsize="end"
+                android:gravity="center"
+                android:maxLines="1"
+                android:textSize="28sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/hlMeta"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="center"
+                android:text="◀ ▶ gira a espiral · OK assistir"
+                android:textColor="@color/pink_text"
+                android:textSize="16sp" />
+        </LinearLayout>
+
         <TextView
             android:id="@+id/empty"
             android:layout_width="wrap_content"

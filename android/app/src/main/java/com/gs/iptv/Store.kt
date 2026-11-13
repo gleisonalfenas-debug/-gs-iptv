@@ -253,8 +253,10 @@ object Store {
     private fun buildTabs(list: List<Item>) {
         val map = HashMap<Tab, TabData>()
         for (t in Tab.values()) {
+            if (t == Tab.HIGHLIGHTS) { map[t] = highlights(list); continue }
             val tabItems = list.filter { i ->
                 when (t) {
+                    Tab.HIGHLIGHTS -> false
                     Tab.TV -> i.kind == Kind.LIVE
                     Tab.MOVIES -> i.kind == Kind.MOVIE && i.section == 0
                     Tab.SERIES -> i.kind == Kind.SERIES && i.section == 0
@@ -278,6 +280,15 @@ object Store {
             add("Todos" to tv.items)
             addAll(tv.groups)
         }
+    }
+
+    /** Destaques: filmes das categorias de lançamentos/destaques; se não houver, os primeiros filmes. */
+    private fun highlights(list: List<Item>): TabData {
+        val keys = listOf("lanc", "destaq", "novidad", "recente", "cinema", "estreia", "2026", "2025", "top")
+        val movies = list.filter { it.kind == Kind.MOVIE }
+        val picked = movies.filter { m -> norm(m.group).let { g -> keys.any { it in g } } }
+        val result = (if (picked.isNotEmpty()) picked else movies).take(60)
+        return TabData(result, listOf("Destaques" to result))
     }
 
     fun tab(t: Tab): TabData = tabs[t] ?: TabData(emptyList(), emptyList())
@@ -413,4 +424,4 @@ object Store {
     private fun withScheme(s: String) = if (s.startsWith("http://") || s.startsWith("https://")) s else "http://$s"
 }
 
-enum class Tab(val label: String) { TV("TV"), MOVIES("FILMES"), SERIES("SÉRIES"), KIDS("KIDS"), ANIME("ANIME") }
+enum class Tab(val label: String) { TV("TV"), HIGHLIGHTS("DESTAQUES"), MOVIES("FILMES"), SERIES("SÉRIES"), KIDS("KIDS"), ANIME("ANIME") }
