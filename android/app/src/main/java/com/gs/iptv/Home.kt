@@ -148,10 +148,12 @@ class TileAdapter(
 class StoryAdapter(
     private val items: List<Item>,
     private val lite: Boolean,
+    /** Avisa quando uma bolinha ganha/perde o foco (para a prévia ao vivo dentro dela). */
+    private val onFocusItem: (Item, FrameLayout, Boolean) -> Unit = { _, _, _ -> },
     private val onClick: (Int) -> Unit,
 ) : RecyclerView.Adapter<StoryAdapter.VH>() {
 
-    class VH(val root: LinearLayout, val ring: FrameLayout, val logo: ImageView, val initials: TextView, val name: TextView) : RecyclerView.ViewHolder(root)
+    class VH(val root: LinearLayout, val ring: FrameLayout, val inner: FrameLayout, val logo: ImageView, val initials: TextView, val name: TextView) : RecyclerView.ViewHolder(root)
 
     override fun getItemCount() = items.size
 
@@ -187,7 +189,7 @@ class StoryAdapter(
         // anel com tamanho fixo e quadrado: o círculo não deforma
         root.addView(ring, LinearLayout.LayoutParams((76 * d).toInt(), (76 * d).toInt()))
         root.addView(name, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
-        return VH(root, ring, logo, initials, name)
+        return VH(root, ring, inner, logo, initials, name)
     }
 
     override fun onBindViewHolder(h: VH, pos: Int) {
@@ -206,6 +208,8 @@ class StoryAdapter(
             v.animate().scaleX(if (has) 1.12f else 1f).scaleY(if (has) 1.12f else 1f).setDuration(120).start()
             h.name.setTextColor(if (has) Color.WHITE else Color.parseColor("#E6DCDE"))
             h.ring.foreground = if (has) GradientDrawable().apply { shape = GradientDrawable.OVAL; setStroke((3 * v.resources.displayMetrics.density).toInt(), Color.WHITE) } else null
+            val p = h.bindingAdapterPosition
+            if (p != RecyclerView.NO_POSITION) onFocusItem(items[p], h.inner, has)
         }
         h.root.setOnClickListener { _ -> val p = h.bindingAdapterPosition; if (p != RecyclerView.NO_POSITION) onClick(p) }
     }

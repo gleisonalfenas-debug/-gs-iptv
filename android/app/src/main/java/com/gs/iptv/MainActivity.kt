@@ -202,7 +202,7 @@ class MainActivity : AppCompatActivity() {
         val last = Store.lastUrl(this)
         val chans = (live.filter { it.url == last } + live.filter { favs.contains(it.url) } + live).distinctBy { it.url }.take(40)
         val chanClick: (Int) -> Unit = { i -> current = chans[i]; openFullscreen(chans, i) }
-        storiesRow.adapter = StoryAdapter(chans, lite, chanClick)
+        storiesRow.adapter = StoryAdapter(chans, lite, { item, bubble, has -> onBubbleFocus(item, bubble, has) }, chanClick)
 
         // Fileira de baixo: séries para maratonar (ou filmes, ou canais)
         val (title, list) = when {
@@ -216,6 +216,48 @@ class MainActivity : AppCompatActivity() {
             val item = list[i]
             if (item.url.startsWith(Xtream.SERIES_PREFIX)) openSeries(item) else openFullscreen(list, i)
         }
+    }
+
+    // ---------------- Prévia ao vivo dentro da bolinha ----------------
+    private var bubblePlayer: androidx.media3.exoplayer.ExoPlayer? = null
+    private var bubbleTexture: android.view.TextureView? = null
+    private var bubbleStart: Runnable? = null
+
+    /** Parou o foco numa bolinha: depois de ~1s mostra o canal ao vivo dentro dela (sem som). */
+    private fun onBubbleFocus(item: Item, bubble: android.widget.FrameLayout, has: Boolean) {
+        bubbleStart?.let { ui.removeCallbacks(it) }
+        if (!has) { stopBubblePreview(); return }
+        val r = Runnable { startBubblePreview(item, bubble) }
+        bubbleStart = r
+        ui.postDelayed(r, 1_100)
+    }
+
+    private fun startBubblePreview(item: Item, bubble: android.widget.FrameLayout) {
+        stopBubblePreview()
+        val p = bubblePlayer ?: PlayerFactory.create(this, preview = true).also { it.volume = 0f; bubblePlayer = it }
+        val d = resources.displayMetrics.density
+        // mais largo que o círculo: o vídeo 16:9 fica recortado no meio, sem esticar
+        val tv = android.view.TextureView(this)
+        bubble.addView(tv, android.widget.FrameLayout.LayoutParams((121 * d).toInt(), (68 * d).toInt(), android.view.Gravity.CENTER))
+        bubbleTexture = tv
+        p.setVideoTextureView(tv)
+        val url = Store.playRoutes(this, item).first()
+        p.setMediaItem(androidx.media3.common.MediaItem.fromUri(url))
+        p.prepare()
+        p.playWhenReady = true
+    }
+
+    private fun stopBubblePreview() {
+        bubbleStart?.let { ui.removeCallbacks(it) }
+        bubblePlayer?.let { it.stop(); it.clearVideoSurface() }
+        bubbleTexture?.let { (it.parent as? android.view.ViewGroup)?.removeView(it) }
+        bubbleTexture = null
+    }
+
+    private fun releaseBubblePlayer() {
+        stopBubblePreview()
+        bubblePlayer?.release()
+        bubblePlayer = null
     }
 
     private fun focusFirstTile() {
@@ -542,6 +584,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun showTab(t: Tab) {
+        if (t != Tab.HOME) stopBubblePreview()
         tab = t
         tabViews.forEachIndexed { i, v -> v.isSelected = i == t.ordinal }
         val missing = kindsFor(t).filterNot { Store.isLoaded(it) }
@@ -827,6 +870,7 @@ class MainActivity : AppCompatActivity() {
 
     // ---------------- Player ----------------
     private fun openFullscreen(list: List<Item>, index: Int) {
+        releaseBubblePlayer() // libera a conexão antes de abrir o canal (planos com 1 tela)
         Store.playQueue = list
         startActivity(Intent(this, PlayerActivity::class.java).putExtra("index", index))
     }
@@ -853,6 +897,7 @@ class MainActivity : AppCompatActivity() {
         super.onStop()
         ui.removeCallbacks(clockTick)
         ui.removeCallbacks(scheduleCheck)
+        releaseBubblePlayer()
     }
 
     private fun toast(s: String) = Toast.makeText(this, s, Toast.LENGTH_SHORT).show()
