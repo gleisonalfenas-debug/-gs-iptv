@@ -21,8 +21,6 @@ import androidx.lifecycle.lifecycleScope
 import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
-import androidx.media3.exoplayer.ExoPlayer
-import androidx.media3.ui.PlayerView
 import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
@@ -45,12 +43,10 @@ class MainActivity : AppCompatActivity() {
     private lateinit var loadingText: TextView
     private lateinit var sectionPanel: View
     private lateinit var clock: TextView
-    private lateinit var preview: PlayerView
-    private lateinit var nowName: TextView
-    private lateinit var nowGroup: TextView
-    private lateinit var liveBadge: View
-    private lateinit var channelsList: RecyclerView
-    private lateinit var gridList: RecyclerView
+    private lateinit var channelsList: TvList
+    private lateinit var gridList: TvList
+    private lateinit var liveCatList: TvList
+    private lateinit var vodCatList: TvList
 
     private lateinit var liveCatAdapter: CategoryAdapter
     private lateinit var vodCatAdapter: CategoryAdapter
@@ -60,8 +56,6 @@ class MainActivity : AppCompatActivity() {
     private var liveCats: List<Pair<String, List<Item>>> = emptyList()
     private var vodCats: List<Pair<String, List<Item>>> = emptyList()
 
-    private var player: ExoPlayer? = null
-    private var smart: SmartPlay? = null
     private var current: Item? = null
     private var loaded = false
 
@@ -87,10 +81,6 @@ class MainActivity : AppCompatActivity() {
         loading = findViewById(R.id.loading)
         loadingText = findViewById(R.id.loadingText)
         clock = findViewById(R.id.clock)
-        preview = findViewById(R.id.preview)
-        nowName = findViewById(R.id.nowName)
-        nowGroup = findViewById(R.id.nowGroup)
-        liveBadge = findViewById(R.id.liveBadge)
         channelsList = findViewById(R.id.channels)
         gridList = findViewById(R.id.grid)
         findViewById<TextView>(R.id.brand).text = Store.listName(this).let { "GS IPTV  ·  $it" }
@@ -164,9 +154,6 @@ class MainActivity : AppCompatActivity() {
                 Diag.log("DNS alterado para ${opts[i].label}")
                 toast("DNS: ${opts[i].label}")
                 Http.warm(Store.playlistUrl(this))
-                // recria o player com o DNS novo
-                preview.player = null; player?.release(); player = null; smart = null
-                current?.let { playPreview(it) }
                 d.dismiss()
             }
             .setNegativeButton("Fechar", null)
@@ -182,7 +169,6 @@ class MainActivity : AppCompatActivity() {
                 Buffer.set(this, opts[i])
                 Diag.log("Buffer alterado para ${opts[i].label}")
                 toast("Buffer: ${opts[i].label}")
-                current?.let { playPreview(it) } // aplica no canal atual
                 d.dismiss()
             }
             .setNegativeButton("Fechar", null)
@@ -204,6 +190,11 @@ class MainActivity : AppCompatActivity() {
                 setPadding(h, v, h, v)
                 isFocusable = true
                 setOnFocusChangeListener { _, has -> if (has && t != tab) showTab(t) }
+                setOnKeyListener { _, code, ev ->
+                    if (ev.action == android.view.KeyEvent.ACTION_DOWN && code == android.view.KeyEvent.KEYCODE_DPAD_DOWN) {
+                        focusContent(); true
+                    } else false
+                }
                 setOnClickListener { showTab(t) }
             }
             val lp = LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT)
@@ -219,7 +210,8 @@ class MainActivity : AppCompatActivity() {
         vodCatAdapter = CategoryAdapter { i -> showVodCategory(i) }
         channelAdapter = ChannelAdapter(
             onClick = { item, pos ->
-                if (item.url == current?.url) openFullscreen(channelAdapter.items, pos) else playPreview(item)
+                current = item
+                openFullscreen(channelAdapter.items, pos)
             },
             onLongClick = { item, _ ->
                 val added = Store.toggleFavorite(this, item.url)
@@ -233,12 +225,25 @@ class MainActivity : AppCompatActivity() {
             else openFullscreen(posterAdapter.items, pos)
         }
 
-        findViewById<RecyclerView>(R.id.liveCategories).apply {
-            layoutManager = LinearLayoutManager(this@MainActivity); adapter = liveCatAdapter
-        }
-        findViewById<RecyclerView>(R.id.vodCategories).apply {
-            layoutManager = LinearLayoutManager(this@MainActivity); adapter = vodCatAdapter
-        }
+        liveCatList = findViewById(R.id.liveCategories)
+        vodCatList = findViewById(R.id.vodCategories)
+        liveCatList.layoutManager = LinearLayoutManager(this); liveCatList.adapter = liveCatAdapter
+        vodCatList.layoutManager = LinearLayoutManager(this); vodCatList.adapter = vodCatAdapter
+
+        // Direções do controle: cada borda leva exatamente para o lugar certo
+        val toTabs = { tabViews[tab.ordinal].requestFocus(); Unit }
+        liveCatList.onUp = toTabs
+        liveCatList.onLeft = {}
+        liveCatList.onRight = { channelsList.focusPosition(0) }
+        channelsList.onUp = toTabs
+        channelsList.onLeft = { liveCatList.focusPosition(liveCatAdapter.selected) }
+        channelsList.onRight = {}
+        vodCatList.onUp = toTabs
+        vodCatList.onLeft = {}
+        vodCatList.onRight = { gridList.focusPosition(0) }
+        gridList.onUp = toTabs
+        gridList.onLeft = { vodCatList.focusPosition(vodCatAdapter.selected) }
+        gridList.onRight = {}
         channelsList.setHasFixedSize(true)
         gridList.setHasFixedSize(true)
         gridList.setItemViewCacheSize(10)
@@ -247,8 +252,24 @@ class MainActivity : AppCompatActivity() {
         gridList.layoutManager = GridLayoutManager(this, 5)
         gridList.adapter = posterAdapter
         // Sem animação de troca: assim o foco do controle não "pula"
-        listOf(R.id.liveCategories, R.id.vodCategories, R.id.channels, R.id.grid)
-            .forEach { findViewById<RecyclerView>(it).itemAnimator = null }
+        listOf(liveCatList, vodCatList, channelsList, gridList).forEach { it.itemAnimator = null }
+        // Botões do topo: para baixo vai para as abas
+        listOf(R.id.btnSearch, R.id.btnSend, R.id.btnRefresh, R.id.btnSettings).forEach { id ->
+            findViewById<View>(id).setOnKeyListener { _, code, ev ->
+                if (ev.action == android.view.KeyEvent.ACTION_DOWN && code == android.view.KeyEvent.KEYCODE_DPAD_DOWN) {
+                    tabViews[tab.ordinal].requestFocus(); true
+                } else false
+            }
+        }
+    }
+
+    /** Desce das abas para o conteúdo da aba atual (painel, categorias). */
+    private fun focusContent() {
+        when {
+            sectionPanel.visibility == View.VISIBLE -> showPanel(kindsFor(tab).firstOrNull { !Store.isLoaded(it) })
+            tab == Tab.TV -> liveCatList.focusPosition(liveCatAdapter.selected)
+            else -> vodCatList.focusPosition(vodCatAdapter.selected)
+        }
     }
 
     private fun showTab(t: Tab) {
@@ -261,7 +282,6 @@ class MainActivity : AppCompatActivity() {
             liveView.visibility = View.GONE
             vodView.visibility = View.GONE
             empty.visibility = View.GONE
-            pausePreview()
             showPanel(missing.first())
             return
         }
@@ -280,17 +300,16 @@ class MainActivity : AppCompatActivity() {
                 add("Todos" to list)
                 addAll(data.groups)
             }
-            liveCatAdapter.items = liveCats.map { "${it.first}  (${it.second.size})" }
+            liveCatAdapter.items = liveCats.map { it.first }
             showLiveCategory(0)
         } else {
             liveView.visibility = View.GONE
             vodView.visibility = View.VISIBLE
-            pausePreview()
             vodCats = buildList {
                 add("Todos" to list)
                 addAll(data.groups)
             }
-            vodCatAdapter.items = vodCats.map { "${it.first}  (${it.second.size})" }
+            vodCatAdapter.items = vodCats.map { it.first }
             showVodCategory(0)
         }
     }
@@ -328,7 +347,7 @@ class MainActivity : AppCompatActivity() {
             val st = findViewById<TextView>(status)
             val b = findViewById<TextView>(btn)
             when {
-                Store.isLoaded(kind) -> { st.text = "✓ ${Store.count(kind)} itens"; b.text = "Atualizar" }
+                Store.isLoaded(kind) -> { st.text = "✓ Baixado"; b.text = "Atualizar" }
                 Store.hasFreshCache(this, kind) -> { st.text = "Salvo na TV"; b.text = "Abrir" }
                 else -> { st.text = "Não baixado"; b.text = "Baixar" }
             }
@@ -372,10 +391,6 @@ class MainActivity : AppCompatActivity() {
             }
             loading.visibility = View.GONE
             loaded = true
-            if (kinds.contains(Kind.LIVE) && current == null) {
-                val last = Store.lastUrl(this@MainActivity)
-                Store.tab(Tab.TV).items.firstOrNull { it.url == last }?.let { playPreview(it) }
-            }
             if (failed) showPanel(kinds.first()) else showTab(tab)
             if (sectionPanel.visibility != View.VISIBLE) tabViews[tab.ordinal].requestFocus()
         }
@@ -391,10 +406,6 @@ class MainActivity : AppCompatActivity() {
     private fun onNewList() {
         toast("Login confirmado!")
         current = null
-        player?.stop()
-        liveBadge.visibility = View.GONE
-        nowName.text = "Escolha um canal"
-        nowGroup.text = ""
         tab = Tab.TV
         findViewById<TextView>(R.id.brand).text = "GS IPTV  ·  ${Store.listName(this)}"
         showTab(Tab.TV)
@@ -454,40 +465,18 @@ class MainActivity : AppCompatActivity() {
         val entry = "Busca: $q" to results
         if (tab == Tab.TV) {
             liveCats = listOf(entry) + liveCats.filterNot { it.first.startsWith("Busca:") }
-            liveCatAdapter.items = liveCats.map { "${it.first}  (${it.second.size})" }
+            liveCatAdapter.items = liveCats.map { it.first }
             showLiveCategory(0)
             channelsList.post { channelsList.getChildAt(0)?.requestFocus() }
         } else {
             vodCats = listOf(entry) + vodCats.filterNot { it.first.startsWith("Busca:") }
-            vodCatAdapter.items = vodCats.map { "${it.first}  (${it.second.size})" }
+            vodCatAdapter.items = vodCats.map { it.first }
             showVodCategory(0)
             gridList.post { gridList.getChildAt(0)?.requestFocus() }
         }
     }
 
     // ---------------- Player ----------------
-    private fun ensurePlayer(): SmartPlay {
-        smart?.let { return it }
-        val p = PlayerFactory.create(this, preview = true)
-        val sp = SmartPlay(this, p, preview = true) { nowGroup.text = "Canal indisponível no momento" }
-        preview.player = p
-        player = p
-        smart = sp
-        return sp
-    }
-
-    private fun playPreview(item: Item) {
-        current = item
-        ensurePlayer().play(item)
-        nowName.text = if (item.number > 0) "${item.number}  ${item.name}" else item.name
-        nowGroup.text = item.group
-        liveBadge.visibility = View.VISIBLE
-        channelAdapter.playingUrl = item.url
-        Store.setLastUrl(this, item.url)
-    }
-
-    private fun pausePreview() { player?.pause() }
-
     private fun openFullscreen(list: List<Item>, index: Int) {
         Store.playQueue = list
         startActivity(Intent(this, PlayerActivity::class.java).putExtra("index", index))
@@ -497,7 +486,6 @@ class MainActivity : AppCompatActivity() {
         super.onStart()
         ui.post(clockTick)
         // Volta a tocar a prévia ao retornar da tela cheia
-        if (tab == Tab.TV) current?.let { playPreview(it) }
     }
 
     override fun onResume() {
@@ -513,10 +501,6 @@ class MainActivity : AppCompatActivity() {
     override fun onStop() {
         super.onStop()
         ui.removeCallbacks(clockTick)
-        preview.player = null
-        player?.release()
-        player = null
-        smart = null
     }
 
     private fun toast(s: String) = Toast.makeText(this, s, Toast.LENGTH_SHORT).show()

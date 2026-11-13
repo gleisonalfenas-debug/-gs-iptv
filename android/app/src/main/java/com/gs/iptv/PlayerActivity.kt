@@ -19,7 +19,6 @@ import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.analytics.AnalyticsListener
 import androidx.media3.ui.PlayerView
 import androidx.recyclerview.widget.LinearLayoutManager
-import androidx.recyclerview.widget.RecyclerView
 import java.util.Locale
 
 /**
@@ -35,8 +34,8 @@ class PlayerActivity : AppCompatActivity() {
     private lateinit var osdInfo: TextView
     private lateinit var overlay: View
     private lateinit var catBox: View
-    private lateinit var catList: RecyclerView
-    private lateinit var chList: RecyclerView
+    private lateinit var catList: TvList
+    private lateinit var chList: TvList
     private lateinit var chTitle: TextView
     private lateinit var catAdapter: CategoryAdapter
     private lateinit var chAdapter: ChannelAdapter
@@ -92,6 +91,13 @@ class PlayerActivity : AppCompatActivity() {
         )
         catList.layoutManager = LinearLayoutManager(this); catList.adapter = catAdapter; catList.itemAnimator = null
         chList.layoutManager = LinearLayoutManager(this); chList.adapter = chAdapter; chList.itemAnimator = null
+        // Direções do controle na lista por cima do vídeo
+        chList.onUp = {}
+        chList.onRight = {}
+        chList.onLeft = { catBox.visibility = View.VISIBLE; catList.focusPosition(catAdapter.selected) }
+        catList.onUp = {}
+        catList.onLeft = {}
+        catList.onRight = { chList.focusPosition(0) }
 
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
@@ -190,31 +196,25 @@ class PlayerActivity : AppCompatActivity() {
             add("Todos" to tv.items)
             addAll(tv.groups)
         }
-        catAdapter.items = cats.map { "${it.first}  (${it.second.size})" }
+        catAdapter.items = cats.map { it.first }
         val curCat = queue.getOrNull(index)?.group
         cats.indexOfFirst { it.first == curCat }.takeIf { it >= 0 }?.let { catAdapter.selected = it }
 
         chAdapter.favorites = favs
         chAdapter.items = queue
         chAdapter.playingUrl = queue.getOrNull(index)?.url
-        chTitle.text = "Canais · ${queue.size}"
+        chTitle.text = "Canais"
         overlay.visibility = View.VISIBLE
         catBox.visibility = if (withCategories) View.VISIBLE else View.GONE
-        if (withCategories) focusRow(catList, catAdapter.selected) else focusRow(chList, index)
+        if (withCategories) catList.focusPosition(catAdapter.selected) else chList.focusPosition(index)
         bumpOverlayTimer()
     }
 
     private fun showCategory(i: Int) {
         val c = cats.getOrNull(i) ?: return
         chAdapter.items = c.second
-        chTitle.text = "${c.first} · ${c.second.size}"
+        chTitle.text = c.first
         chList.scrollToPosition(0)
-    }
-
-    private fun focusRow(list: RecyclerView, pos: Int) {
-        val lm = list.layoutManager as LinearLayoutManager
-        lm.scrollToPositionWithOffset(pos.coerceAtLeast(0), 160)
-        list.post { list.findViewHolderForAdapterPosition(pos)?.itemView?.requestFocus() ?: list.requestFocus() }
     }
 
     private fun hideOverlay() {
@@ -231,12 +231,6 @@ class PlayerActivity : AppCompatActivity() {
         if (event.action == KeyEvent.ACTION_DOWN && isLive) {
             if (overlay.visibility == View.VISIBLE) {
                 bumpOverlayTimer()
-                // Esquerda na lista de canais abre as categorias
-                if (event.keyCode == KeyEvent.KEYCODE_DPAD_LEFT && catBox.visibility != View.VISIBLE && chList.hasFocus()) {
-                    catBox.visibility = View.VISIBLE
-                    focusRow(catList, catAdapter.selected)
-                    return true
-                }
             } else {
                 when (event.keyCode) {
                     KeyEvent.KEYCODE_DPAD_UP, KeyEvent.KEYCODE_CHANNEL_UP -> { play(index - 1); return true }

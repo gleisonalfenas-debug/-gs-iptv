@@ -93,81 +93,17 @@
             android:layout_height="match_parent"
             android:orientation="horizontal">
 
-            <androidx.recyclerview.widget.RecyclerView
+            <com.gs.iptv.TvList
                 android:id="@+id/liveCategories"
-                android:layout_width="190dp"
+                android:layout_width="260dp"
                 android:layout_height="match_parent" />
 
-            <androidx.recyclerview.widget.RecyclerView
+            <com.gs.iptv.TvList
                 android:id="@+id/channels"
-                android:layout_width="340dp"
-                android:layout_height="match_parent"
-                android:layout_marginStart="8dp" />
-
-            <LinearLayout
                 android:layout_width="0dp"
                 android:layout_height="match_parent"
-                android:layout_marginStart="16dp"
-                android:layout_weight="1"
-                android:background="@drawable/bg_video"
-                android:orientation="vertical">
-
-                <FrameLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="0dp"
-                    android:layout_weight="1">
-
-                    <androidx.media3.ui.PlayerView
-                        android:id="@+id/preview"
-                        android:layout_width="match_parent"
-                        android:layout_height="match_parent"
-                        android:focusable="false"
-                        app:resize_mode="fit"
-                        app:use_controller="false" />
-
-                    <TextView
-                        android:id="@+id/liveBadge"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_margin="12dp"
-                        android:background="@drawable/bg_live"
-                        android:paddingHorizontal="8dp"
-                        android:paddingVertical="3dp"
-                        android:text="AO VIVO"
-                        android:textSize="12sp"
-                        android:textStyle="bold"
-                        android:visibility="gone" />
-                </FrameLayout>
-
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="58dp"
-                    android:background="#99000000"
-                    android:gravity="center_vertical"
-                    android:orientation="horizontal"
-                    android:paddingHorizontal="18dp">
-
-                    <TextView
-                        android:id="@+id/nowName"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:ellipsize="end"
-                        android:maxLines="1"
-                        android:text="Escolha um canal"
-                        android:textSize="21sp"
-                        android:textStyle="bold" />
-
-                    <TextView
-                        android:id="@+id/nowGroup"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_marginStart="16dp"
-                        android:ellipsize="end"
-                        android:maxLines="1"
-                        android:textColor="@color/pink_text"
-                        android:textSize="16sp" />
-                </LinearLayout>
-            </LinearLayout>
+                android:layout_marginStart="12dp"
+                android:layout_weight="1" />
         </LinearLayout>
 
         <!-- Filmes / Séries / Kids / Anime -->
@@ -178,12 +114,12 @@
             android:orientation="horizontal"
             android:visibility="gone">
 
-            <androidx.recyclerview.widget.RecyclerView
+            <com.gs.iptv.TvList
                 android:id="@+id/vodCategories"
-                android:layout_width="190dp"
+                android:layout_width="260dp"
                 android:layout_height="match_parent" />
 
-            <androidx.recyclerview.widget.RecyclerView
+            <com.gs.iptv.TvList
                 android:id="@+id/grid"
                 android:layout_width="0dp"
                 android:layout_height="match_parent"
@@ -371,7 +307,7 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_marginTop="8dp"
-        android:text="OK no canal = assistir · OK de novo = tela cheia · Segure OK = favorito"
+        android:text="OK = assistir · Segure OK = favorito"
         android:textColor="@color/pink_text"
         android:textSize="13sp" />
 </LinearLayout>
