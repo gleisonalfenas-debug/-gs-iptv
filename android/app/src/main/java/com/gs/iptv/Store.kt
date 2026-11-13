@@ -95,6 +95,11 @@ object Store {
     fun autoLastOn(ctx: Context) = prefs(ctx).getBoolean("auto_last", false)
     fun setAutoLast(ctx: Context, on: Boolean) = prefs(ctx).edit().putBoolean("auto_last", on).apply()
     fun isKids(i: Item) = i.section == 1
+    /** Modo seguro do Kids: só conteúdo infantil; sair pede a senha. */
+    fun kidsSafeOn(ctx: Context) = prefs(ctx).getBoolean("kids_safe", false)
+    fun kidsPin(ctx: Context) = prefs(ctx).getString("kids_pin", "") ?: ""
+    fun setKidsSafe(ctx: Context, on: Boolean, pin: String = kidsPin(ctx)) =
+        prefs(ctx).edit().putBoolean("kids_safe", on).putString("kids_pin", pin).apply()
     fun cornerLogoOn(ctx: Context) = prefs(ctx).getBoolean("show_logo", true)
     fun setCornerLogo(ctx: Context, on: Boolean) = prefs(ctx).edit().putBoolean("show_logo", on).apply()
     fun bgLogoOn(ctx: Context) = prefs(ctx).getBoolean("show_bg_logo", true)

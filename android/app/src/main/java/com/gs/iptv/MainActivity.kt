@@ -55,6 +55,8 @@ class MainActivity : AppCompatActivity() {
     private var loaded = false
     private var loadingNow = false
     private var current: Item? = null
+    private var unlocked = false
+    private fun locked() = Store.kidsSafeOn(this) && !unlocked
 
     private lateinit var title: TextView
     private lateinit var subtitle: TextView
@@ -147,6 +149,7 @@ class MainActivity : AppCompatActivity() {
                 .setPositiveButton("OK", null).show()
         }
         Http.warm(Store.playlistUrl(this))
+        if (Store.kidsSafeOn(this)) page = Page.KIDS
         if (!Store.hasList(this)) openSendList() else startup()
     }
 
@@ -177,9 +180,15 @@ class MainActivity : AppCompatActivity() {
             item.tag = Runnable { tint() }
             item.setOnFocusChangeListener { _, has ->
                 tint()
-                if (has && p != page && p != Page.SEARCH) showPage(p)
+                if (has && p != page && p != Page.SEARCH && !locked()) showPage(p)
             }
-            item.setOnClickListener { if (p == Page.SEARCH) openSearch() else { showPage(p); focusContent() } }
+            item.setOnClickListener {
+                when {
+                    locked() && p != Page.KIDS -> askPin { showPage(p); focusContent() }
+                    p == Page.SEARCH -> openSearch()
+                    else -> { showPage(p); focusContent() }
+                }
+            }
             item.setOnKeyListener { _, code, ev ->
                 if (ev.action == KeyEvent.ACTION_DOWN && code == KeyEvent.KEYCODE_DPAD_RIGHT) { focusContent(); true } else false
             }
@@ -206,6 +215,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun showPage(p: Page) {
+        if (locked() && p != Page.KIDS) { if (page != Page.KIDS) showPage(Page.KIDS); return }
         page = p
         markRail()
         pages.values.forEach { it.visibility = View.GONE }
@@ -528,6 +538,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun showKids() {
         setHeader("Kids", "Diversão para os pequenos")
+        findViewById<View>(R.id.kidsBadge).visibility = if (Store.kidsSafeOn(this)) View.VISIBLE else View.GONE
         val liveKids = Store.tab(Tab.TV).items.filter { Store.isKids(it) }
         val list = (liveKids + Store.tab(Tab.KIDS).items).take(300)
         kidsGrid.adapter = BigTileAdapter(list, !lite, true) { i -> openItem(list, i) }
@@ -577,6 +588,10 @@ class MainActivity : AppCompatActivity() {
         prefs.addView(toggleRow("Relógio fixo nos canais", Store.clockOn(this)) { on -> Store.setClock(this, on) })
         prefs.addView(toggleRow("Logo no canto dos canais", Store.cornerLogoOn(this)) { on -> Store.setCornerLogo(this, on) })
         prefs.addView(toggleRow("Abrir no último canal", Store.autoLastOn(this)) { on -> Store.setAutoLast(this, on) })
+        prefs.addView(toggleRow("Modo seguro do Kids (pede senha para sair)", Store.kidsSafeOn(this)) { on ->
+            if (on) createPin { pin -> Store.setKidsSafe(this, true, pin); unlocked = false; toast("Modo seguro ligado. O app abre no Kids."); showPage(Page.KIDS) }
+            else { Store.setKidsSafe(this, false); toast("Modo seguro desligado") }
+        })
         prefs.addView(sectionLabel("AJUSTES"))
         prefs.addView(actionRow("Buffer: ${Buffer.current(this).label}") { openBufferSettings() })
         prefs.addView(actionRow("DNS: ${DnsMode.current(this).label}") { openDnsSettings() })
@@ -597,6 +612,33 @@ class MainActivity : AppCompatActivity() {
                 })
             }
         }
+    }
+
+    // ---------- Senha do Modo seguro ----------
+    private fun pinInput() = EditText(this).apply {
+        inputType = android.text.InputType.TYPE_CLASS_NUMBER or android.text.InputType.TYPE_NUMBER_VARIATION_PASSWORD
+        filters = arrayOf(android.text.InputFilter.LengthFilter(4))
+        hint = "4 números"; setTextColor(Color.BLACK); gravity = Gravity.CENTER
+    }
+
+    private fun createPin(done: (String) -> Unit) {
+        val input = pinInput()
+        AlertDialog.Builder(this).setTitle("Crie uma senha de 4 números").setView(input)
+            .setPositiveButton("Salvar") { _, _ ->
+                val pin = input.text.toString()
+                if (pin.length == 4) done(pin) else { toast("A senha precisa ter 4 números"); showAccount() }
+            }
+            .setNegativeButton("Cancelar") { _, _ -> showAccount() }.show()
+    }
+
+    private fun askPin(onOk: () -> Unit) {
+        val input = pinInput()
+        AlertDialog.Builder(this).setTitle("Modo seguro: digite a senha para sair do Kids").setView(input)
+            .setPositiveButton("Entrar") { _, _ ->
+                if (input.text.toString() == Store.kidsPin(this)) { unlocked = true; onOk() }
+                else { toast("Senha errada"); focusRail() }
+            }
+            .setNegativeButton("Cancelar") { _, _ -> focusRail() }.show()
     }
 
     private fun sectionLabel(t: String) = TextView(this).apply {

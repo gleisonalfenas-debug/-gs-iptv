@@ -22,6 +22,7 @@ import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.analytics.AnalyticsListener
 import androidx.media3.ui.PlayerView
 import androidx.recyclerview.widget.LinearLayoutManager
+import coil.load
 import java.util.Locale
 
 /**
@@ -60,8 +61,9 @@ class PlayerActivity : AppCompatActivity() {
         override fun run() {
             // enquanto o canal não abre, o aviso continua na tela
             if (openStartedAt > 0) osdUntil = maxOf(osdUntil, System.currentTimeMillis() + 3_000)
-            if (System.currentTimeMillis() >= osdUntil) { osd.visibility = View.GONE; return }
+            if (System.currentTimeMillis() >= osdUntil) { osd.visibility = View.GONE; findViewById<View>(R.id.liveBar).visibility = View.GONE; return }
             osdInfo.text = infoText()
+            if (findViewById<View>(R.id.liveBar).visibility == View.VISIBLE) findViewById<TextView>(R.id.barTech).text = osdInfo.text
             ui.postDelayed(this, 1000)
         }
     }
@@ -243,9 +245,38 @@ class PlayerActivity : AppCompatActivity() {
         showOsd()
     }
 
+    /** Barra de informações do canal ao vivo (logo, programa atual, progresso, próximo). */
+    private fun fillLiveBar(item: Item) {
+        val bar = findViewById<View>(R.id.liveBar)
+        findViewById<TextView>(R.id.barName).text = if (item.number > 0) "${item.number} · ${item.name}" else item.name
+        findViewById<TextView>(R.id.barInitials).text = initialsOf(item.name)
+        findViewById<View>(R.id.barLogoBox).background = android.graphics.drawable.GradientDrawable().apply {
+            cornerRadius = 14 * resources.displayMetrics.density; setColor(colorOf(item.name))
+        }
+        val logo = findViewById<android.widget.ImageView>(R.id.barLogo)
+        if (!Store.liteOn(this) && item.logo.isNotEmpty()) { logo.visibility = View.VISIBLE; logo.load(item.logo) { size(160, 160) } } else logo.visibility = View.GONE
+        val fmt = java.text.SimpleDateFormat("HH:mm", Locale.getDefault())
+        fun fill(progs: List<Prog>?) {
+            val cur = Epg.current(progs); val nxt = Epg.next(progs)
+            findViewById<TextView>(R.id.barProg).text = cur?.let { "${it.title}  ·  ${fmt.format(java.util.Date(it.start))}–${fmt.format(java.util.Date(it.end))}" } ?: item.group
+            val pb = findViewById<android.widget.ProgressBar>(R.id.barProgress)
+            pb.visibility = if (cur != null) View.VISIBLE else View.GONE
+            if (cur != null) pb.progress = (((System.currentTimeMillis() - cur.start) * 1000) / (cur.end - cur.start).coerceAtLeast(1)).toInt()
+            findViewById<TextView>(R.id.barNext).text = nxt?.let { "Depois: ${it.title}  ·  ◀ canais  ·  OK lista" } ?: "◀ canais  ·  OK lista  ·  ▲▼ troca de canal"
+        }
+        fill(Epg.cached(item))
+        Epg.request(this, item) { progs -> if (queue.getOrNull(index)?.url == item.url) fill(progs) }
+        bar.visibility = View.VISIBLE
+    }
+
     /** Mostra nome + velocidade por 10 segundos. */
     private fun showOsd() {
-        osd.visibility = View.VISIBLE
+        val item = queue.getOrNull(index)
+        if (item?.kind == Kind.LIVE) {
+            fillLiveBar(item)
+            findViewById<TextView>(R.id.barTech).text = osdInfo.text
+            osd.visibility = View.GONE
+        } else osd.visibility = View.VISIBLE
         osdUntil = System.currentTimeMillis() + 10_000
         ui.removeCallbacks(osdTick)
         ui.post(osdTick)

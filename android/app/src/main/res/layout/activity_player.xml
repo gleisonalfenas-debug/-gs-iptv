@@ -72,6 +72,47 @@
             android:textSize="17sp" />
     </LinearLayout>
 
+    <!-- Canal ao vivo: barra de informações embaixo (programa atual, progresso, próximo) -->
+    <LinearLayout
+        android:id="@+id/liveBar"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom"
+        android:layout_marginHorizontal="30dp"
+        android:layout_marginBottom="28dp"
+        android:background="@drawable/bg_live_bar"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:padding="18dp"
+        android:visibility="gone">
+
+        <FrameLayout android:id="@+id/barLogoBox" android:layout_width="64dp" android:layout_height="64dp">
+            <TextView android:id="@+id/barInitials" android:layout_width="match_parent" android:layout_height="match_parent"
+                android:gravity="center" android:textSize="20sp" android:textStyle="bold" />
+            <ImageView android:id="@+id/barLogo" android:layout_width="match_parent" android:layout_height="match_parent"
+                android:importantForAccessibility="no" android:padding="6dp" android:scaleType="fitCenter" />
+        </FrameLayout>
+
+        <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_marginStart="18dp"
+            android:layout_weight="1" android:orientation="vertical">
+            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:gravity="center_vertical" android:orientation="horizontal">
+                <TextView android:id="@+id/barName" android:layout_width="wrap_content" android:layout_height="wrap_content"
+                    android:ellipsize="end" android:maxLines="1" android:textSize="22sp" android:textStyle="bold" />
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginStart="12dp"
+                    android:background="@drawable/bg_live" android:paddingHorizontal="7dp" android:paddingVertical="2dp"
+                    android:text="AO VIVO" android:textSize="11sp" android:textStyle="bold" />
+                <TextView android:id="@+id/barTech" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_marginStart="12dp"
+                    android:layout_weight="1" android:ellipsize="end" android:maxLines="1" android:textColor="#B9BDC8" android:textSize="13sp" />
+            </LinearLayout>
+            <TextView android:id="@+id/barProg" android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:layout_marginTop="4dp" android:ellipsize="end" android:maxLines="1" android:textSize="16sp" />
+            <ProgressBar android:id="@+id/barProgress" style="?android:attr/progressBarStyleHorizontal" android:layout_width="match_parent"
+                android:layout_height="4dp" android:layout_marginTop="6dp" android:max="1000" android:progressDrawable="@drawable/progress_red" />
+            <TextView android:id="@+id/barNext" android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:layout_marginTop="5dp" android:ellipsize="end" android:maxLines="1" android:textColor="#B9BDC8" android:textSize="13sp" />
+        </LinearLayout>
+    </LinearLayout>
+
     <!-- Filmes/séries: idioma, legenda e resolução (seta para baixo) -->
     <LinearLayout
         android:id="@+id/trackPanel"
