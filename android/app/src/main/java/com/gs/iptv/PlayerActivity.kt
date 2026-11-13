@@ -11,7 +11,10 @@ import android.widget.Toast
 import androidx.activity.OnBackPressedCallback
 import androidx.annotation.OptIn
 import androidx.appcompat.app.AppCompatActivity
+import androidx.media3.common.C
 import androidx.media3.common.Format
+import androidx.media3.common.TrackSelectionOverride
+import androidx.media3.common.Tracks
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.DecoderReuseEvaluation
@@ -170,6 +173,11 @@ class PlayerActivity : AppCompatActivity() {
                 eventTime: AnalyticsListener.EventTime, format: Format, decoderReuseEvaluation: DecoderReuseEvaluation?,
             ) { Diag.video(format.width, format.height, format.bitrate, format.sampleMimeType) }
         })
+        // Prefere áudio e legenda em português quando o filme tiver
+        p.trackSelectionParameters = p.trackSelectionParameters.buildUpon()
+            .setPreferredAudioLanguages("pt", "por")
+            .setPreferredTextLanguages("pt", "por")
+            .build()
         view.player = p
         player = p
         if (clock.visibility == View.VISIBLE) ui.post(clockTick)
@@ -265,7 +273,109 @@ class PlayerActivity : AppCompatActivity() {
         ui.postDelayed(hideOverlayTask, 20_000)
     }
 
+    // ---------- Filmes e séries: qualidade, idioma e legenda ----------
+    private data class Track(val group: Tracks.Group, val index: Int, val label: String, val selected: Boolean)
+
+    private fun tracksOf(type: Int): List<Track> {
+        val p = player ?: return emptyList()
+        val out = ArrayList<Track>()
+        for (g in p.currentTracks.groups) {
+            if (g.type != type) continue
+            for (i in 0 until g.length) {
+                if (!g.isTrackSupported(i)) continue
+                out.add(Track(g, i, describe(g.getTrackFormat(i), type), g.isTrackSelected(i)))
+            }
+        }
+        return if (type == C.TRACK_TYPE_VIDEO) out.sortedByDescending { it.group.getTrackFormat(it.index).height } else out
+    }
+
+    private fun language(code: String?): String {
+        if (code.isNullOrEmpty() || code == "und") return "Desconhecido"
+        val name = Locale(code).getDisplayLanguage(Locale("pt", "BR"))
+        return name.replaceFirstChar { it.uppercase() }
+    }
+
+    private fun describe(f: Format, type: Int): String = when (type) {
+        C.TRACK_TYPE_VIDEO -> buildString {
+            append(if (f.height > 0) "${f.height}p" else "Vídeo")
+            if (f.bitrate > 0) append(String.format(Locale("pt", "BR"), " · %.1f Mbps", f.bitrate / 1_000_000.0))
+        }
+        C.TRACK_TYPE_AUDIO -> buildString {
+            append(language(f.language))
+            f.label?.takeIf { it.isNotBlank() }?.let { append(" · $it") }
+            if (f.channelCount >= 6) append(" · 5.1") else if (f.channelCount == 2) append(" · Estéreo")
+        }
+        else -> buildString {
+            append(language(f.language))
+            f.label?.takeIf { it.isNotBlank() }?.let { append(" · $it") }
+            if (f.selectionFlags and C.SELECTION_FLAG_FORCED != 0) append(" · forçada")
+        }
+    }
+
+    private fun openOptions() {
+        val p = player ?: return
+        val item = queue.getOrNull(index)
+        val video = tracksOf(C.TRACK_TYPE_VIDEO)
+        val audio = tracksOf(C.TRACK_TYPE_AUDIO)
+        val text = tracksOf(C.TRACK_TYPE_TEXT)
+        val q = video.firstOrNull { it.selected }?.label?.substringBefore(" ·") ?: "Automática"
+        val a = audio.firstOrNull { it.selected }?.label ?: "Padrão"
+        val t = text.firstOrNull { it.selected }?.label ?: "Desligada"
+        val opts = ArrayList<Pair<String, () -> Unit>>()
+        opts.add((if (p.isPlaying) "Pausar" else "Continuar") to { if (p.isPlaying) p.pause() else p.play() })
+        opts.add("Resolução: $q" to { chooseTrack(C.TRACK_TYPE_VIDEO, "Resolução", video) })
+        opts.add("Idioma do áudio: $a" to { chooseTrack(C.TRACK_TYPE_AUDIO, "Idioma do áudio", audio) })
+        opts.add("Legenda: $t" to { chooseTrack(C.TRACK_TYPE_TEXT, "Legenda", text) })
+        androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle(item?.name ?: "Opções")
+            .setItems(opts.map { it.first }.toTypedArray()) { _, i -> opts[i].second() }
+            .setNegativeButton("Fechar", null)
+            .show()
+    }
+
+    private fun chooseTrack(type: Int, title: String, list: List<Track>) {
+        val p = player ?: return
+        if (list.isEmpty() || (type != C.TRACK_TYPE_TEXT && list.size == 1)) {
+            Toast.makeText(this, "Este conteúdo não tem outras opções de ${title.lowercase()}", Toast.LENGTH_LONG).show()
+            return
+        }
+        // Vídeo: "Automática" no topo; Legenda: "Desligada" no topo
+        val extra = when (type) { C.TRACK_TYPE_VIDEO -> "Automática"; C.TRACK_TYPE_TEXT -> "Desligada"; else -> null }
+        val labels = (listOfNotNull(extra) + list.map { it.label }).toTypedArray()
+        val textOff = p.trackSelectionParameters.disabledTrackTypes.contains(C.TRACK_TYPE_TEXT) || list.none { it.selected }
+        val hasOverride = p.trackSelectionParameters.overrides.keys.any { it.type == type }
+        val checked = when {
+            type == C.TRACK_TYPE_TEXT && textOff -> 0
+            type == C.TRACK_TYPE_VIDEO && !hasOverride -> 0
+            else -> list.indexOfFirst { it.selected }.let { if (it < 0) 0 else it + if (extra != null) 1 else 0 }
+        }
+        androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle(title)
+            .setSingleChoiceItems(labels, checked) { d, i ->
+                val b = p.trackSelectionParameters.buildUpon()
+                if (extra != null && i == 0) {
+                    if (type == C.TRACK_TYPE_TEXT) b.setTrackTypeDisabled(C.TRACK_TYPE_TEXT, true)
+                    else b.clearOverridesOfType(type)
+                } else {
+                    val tr = list[i - if (extra != null) 1 else 0]
+                    b.setTrackTypeDisabled(type, false)
+                        .setOverrideForType(TrackSelectionOverride(tr.group.mediaTrackGroup, tr.index))
+                }
+                p.trackSelectionParameters = b.build()
+                Diag.log("$title: ${labels[i]}")
+                d.dismiss()
+            }
+            .setNegativeButton("Voltar", null)
+            .show()
+    }
+
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        // Filmes e séries: OK (com os controles escondidos) ou MENU abre resolução, idioma e legenda
+        if (event.action == KeyEvent.ACTION_DOWN && !isLive) {
+            val ok = event.keyCode == KeyEvent.KEYCODE_DPAD_CENTER || event.keyCode == KeyEvent.KEYCODE_ENTER || event.keyCode == KeyEvent.KEYCODE_NUMPAD_ENTER
+            if (event.keyCode == KeyEvent.KEYCODE_MENU || (ok && !view.isControllerFullyVisible)) { openOptions(); return true }
+        }
+        if (event.action == KeyEvent.ACTION_DOWN && isLive && event.keyCode == KeyEvent.KEYCODE_MENU) { openOptions(); return true }
         if (event.action == KeyEvent.ACTION_DOWN && isLive) {
             if (overlay.visibility == View.VISIBLE) {
                 bumpOverlayTimer()
