@@ -116,7 +116,6 @@ class MainActivity : AppCompatActivity() {
         loadingText = findViewById(R.id.loadingText)
         sectionPanel = findViewById(R.id.sectionPanel)
         findViewById<TextView>(R.id.version).text = "v${BuildConfig.VERSION_NAME}"
-        findViewById<GlobeView>(R.id.railGlobe).apply { compact = true; visibility = if (lite) View.GONE else View.VISIBLE }
         pages = mapOf(
             Page.HOME to findViewById(R.id.pageHome), Page.TV to findViewById(R.id.pageTv),
             Page.MOVIES to findViewById(R.id.pageVod), Page.SERIES to findViewById(R.id.pageVod),
