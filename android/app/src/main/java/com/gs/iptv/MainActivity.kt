@@ -130,6 +130,7 @@ class MainActivity : AppCompatActivity() {
                 .show()
         }
         setupPanel()
+        Http.warm(Store.playlistUrl(this)) // já resolve o endereço do servidor
         if (!Store.hasList(this)) openSendList() else startup()
     }
 
@@ -144,6 +145,35 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun openSettings() {
+        AlertDialog.Builder(this)
+            .setTitle("Ajustes")
+            .setItems(arrayOf(
+                "Buffer: ${Buffer.current(this).label}",
+                "DNS: ${DnsMode.current(this).label}",
+            )) { _, i -> if (i == 0) openBufferSettings() else openDnsSettings() }
+            .setNegativeButton("Fechar", null)
+            .show()
+    }
+
+    private fun openDnsSettings() {
+        val opts = DnsMode.values()
+        AlertDialog.Builder(this)
+            .setTitle("DNS (endereço do servidor)")
+            .setSingleChoiceItems(opts.map { it.label }.toTypedArray(), DnsMode.current(this).ordinal) { d, i ->
+                DnsMode.set(this, opts[i])
+                Diag.log("DNS alterado para ${opts[i].label}")
+                toast("DNS: ${opts[i].label}")
+                Http.warm(Store.playlistUrl(this))
+                // recria o player com o DNS novo
+                preview.player = null; player?.release(); player = null; smart = null
+                current?.let { playPreview(it) }
+                d.dismiss()
+            }
+            .setNegativeButton("Fechar", null)
+            .show()
+    }
+
+    private fun openBufferSettings() {
         val opts = Buffer.values()
         val cur = Buffer.current(this).ordinal
         AlertDialog.Builder(this)

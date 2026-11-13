@@ -9,6 +9,7 @@ import java.io.StringWriter
 class GsApp : Application(), coil.ImageLoaderFactory {
     /** Imagens (logos e capas) com cache de memória pequeno, para não pesar a TV. */
     override fun newImageLoader(): coil.ImageLoader = coil.ImageLoader.Builder(this)
+        .okHttpClient { Http.client() }
         .memoryCache { coil.memory.MemoryCache.Builder(this).maxSizePercent(0.10).build() }
         .diskCache { coil.disk.DiskCache.Builder().directory(cacheDir.resolve("imagens")).maxSizeBytes(150L * 1024 * 1024).build() }
         .allowRgb565(true)
@@ -18,6 +19,7 @@ class GsApp : Application(), coil.ImageLoaderFactory {
 
     override fun onCreate() {
         super.onCreate()
+        Http.init(this)
         val previous = Thread.getDefaultUncaughtExceptionHandler()
         Thread.setDefaultUncaughtExceptionHandler { t, e ->
             try {

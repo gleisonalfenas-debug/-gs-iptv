@@ -38,7 +38,8 @@ object Store {
     private val sectionCache = HashMap<String, Int>()
 
     /** Cria um item reaproveitando textos repetidos (economiza memória). */
-    private val prefixCanais = Regex("^\\s*canais?\\s*[:|/•·–-]*\\s*", RegexOption.IGNORE_CASE)
+    // Tira "Canais", "Filmes", "Séries", "VOD" do começo do nome da categoria
+    private val prefixCanais = Regex("^\\s*(canais?|filmes?|s[ée]ries?|vod|movies?)\\s*[:|/•·–-]+\\s*|^\\s*(canais?|filmes?|s[ée]ries?)\\s+(?=\\S)", RegexOption.IGNORE_CASE)
 
     fun make(name: String, url: String, logo: String, group: String, kind: Kind, number: Int): Item {
         // Tira o "Canais" do começo do nome da categoria (ex.: "CANAIS | ESPORTES" -> "ESPORTES")
@@ -48,7 +49,7 @@ object Store {
             val n = norm(g)
             when {
                 "anime" in n -> 2
-                "kids" in n || "infantil" in n || "desenho" in n || "crianca" in n -> 1
+                "kids" in n || "infant" in n || "desenho" in n || "crianca" in n -> 1
                 else -> 0
             }
         }

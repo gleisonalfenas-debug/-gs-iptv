@@ -6,7 +6,6 @@ import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
-import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
@@ -16,11 +15,9 @@ object PlayerFactory {
     /** Player ajustado para começar rápido e não engasgar. */
     @OptIn(UnstableApi::class)
     fun create(ctx: Context, preview: Boolean = false): ExoPlayer {
-        val http = DefaultHttpDataSource.Factory()
+        // Conexão compartilhada: reaproveita conexões e usa o DNS rápido
+        val http = androidx.media3.datasource.okhttp.OkHttpDataSource.Factory(Http.client())
             .setUserAgent(Net.USER_AGENT)
-            .setAllowCrossProtocolRedirects(true)
-            .setConnectTimeoutMs(8_000)
-            .setReadTimeoutMs(15_000)
         // A prévia da tela inicial usa sempre o modo leve; a tela cheia usa o nível escolhido
         val b = if (preview) Buffer.NORMAL else Buffer.current(ctx)
         val load = DefaultLoadControl.Builder()
