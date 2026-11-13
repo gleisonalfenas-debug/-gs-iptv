@@ -144,10 +144,7 @@ class MainActivity : AppCompatActivity() {
                 .setMessage("Tire uma foto desta tela e envie para o suporte:\n\n" + crash.lines().take(14).joinToString("\n"))
                 .setPositiveButton("OK", null).show()
         }
-        Store.justUpdated(this)?.let { v ->
-            AlertDialog.Builder(this).setTitle("GS IPTV atualizado").setMessage("Agora você está na versão $v.")
-                .setPositiveButton("OK", null).show()
-        }
+        Store.justUpdated(this) // só registra a versão; sem janela depois de atualizar
         Http.warm(Store.playlistUrl(this))
         if (Store.kidsSafeOn(this)) page = Page.KIDS
         if (!Store.hasList(this)) openSendList() else startup()
