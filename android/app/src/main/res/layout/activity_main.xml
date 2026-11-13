@@ -63,6 +63,12 @@
             android:src="@drawable/ic_refresh" />
 
         <ImageButton
+            android:id="@+id/btnAccount"
+            style="@style/GS.IconButton"
+            android:contentDescription="Minha conta"
+            android:src="@drawable/ic_user" />
+
+        <ImageButton
             android:id="@+id/btnSettings"
             style="@style/GS.IconButton"
             android:contentDescription="Configurações"
@@ -179,6 +185,52 @@
                     android:textSize="17sp"
                     android:textStyle="bold" />
             </LinearLayout>
+        </LinearLayout>
+
+        <!-- Jogos do dia -->
+        <LinearLayout
+            android:id="@+id/gamesView"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:orientation="vertical"
+            android:visibility="gone">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Jogos de hoje"
+                    android:textSize="26sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/gamesDate"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="14dp"
+                    android:layout_weight="1"
+                    android:textColor="@color/pink_text"
+                    android:textSize="17sp" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="OK no jogo = assistir ou agendar"
+                    android:textColor="@color/pink_text"
+                    android:textSize="14sp" />
+            </LinearLayout>
+
+            <com.gs.iptv.TvList
+                android:id="@+id/gamesList"
+                android:layout_width="match_parent"
+                android:layout_height="0dp"
+                android:layout_marginTop="12dp"
+                android:layout_weight="1" />
         </LinearLayout>
 
         <!-- Destaques em espiral -->

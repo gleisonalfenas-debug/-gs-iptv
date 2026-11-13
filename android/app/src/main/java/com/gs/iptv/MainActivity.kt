@@ -4,6 +4,8 @@ import android.app.AlertDialog
 import android.content.Intent
 import android.graphics.Color
 import android.os.Bundle
+import android.os.Build
+import android.provider.Settings
 import android.os.Handler
 import android.os.Looper
 import android.util.TypedValue
@@ -46,6 +48,9 @@ class MainActivity : AppCompatActivity() {
     private lateinit var channelsList: TvList
     private lateinit var cardFan: CardFan
     private lateinit var spiral: SpiralView
+    private lateinit var gamesView: View
+    private lateinit var gamesList: TvList
+    private lateinit var gameAdapter: GameAdapter
     private lateinit var highlightView: View
     private lateinit var liveCatList: TvList
     private lateinit var vodCatList: TvList
@@ -85,6 +90,14 @@ class MainActivity : AppCompatActivity() {
         channelsList = findViewById(R.id.channels)
         cardFan = findViewById(R.id.cardFan)
         spiral = findViewById(R.id.spiral)
+        gamesView = findViewById(R.id.gamesView)
+        gamesList = findViewById(R.id.gamesList)
+        gameAdapter = GameAdapter { g -> onGameClick(g) }
+        gamesList.layoutManager = LinearLayoutManager(this)
+        gamesList.adapter = gameAdapter
+        gamesList.itemAnimator = null
+        gamesList.onLeft = {}
+        gamesList.onRight = {}
         highlightView = findViewById(R.id.highlightView)
         findViewById<TextView>(R.id.brand).text = Store.listName(this).let { "GS IPTV  ·  $it" }
 
@@ -95,6 +108,7 @@ class MainActivity : AppCompatActivity() {
         findViewById<View>(R.id.btnSend).setOnClickListener { openSendList() }
         findViewById<View>(R.id.btnRefresh).setOnClickListener { refreshAll() }
         findViewById<View>(R.id.btnSettings).setOnClickListener { openSettings() }
+        findViewById<View>(R.id.btnAccount).setOnClickListener { openAccount() }
 
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
@@ -125,6 +139,135 @@ class MainActivity : AppCompatActivity() {
         setupPanel()
         Http.warm(Store.playlistUrl(this)) // já resolve o endereço do servidor
         if (!Store.hasList(this)) openSendList() else startup()
+    }
+
+    // ---------------- Jogos do dia ----------------
+    private fun loadGames(force: Boolean = false) {
+        findViewById<TextView>(R.id.gamesDate).text =
+            SimpleDateFormat("EEEE, dd/MM", Locale("pt", "BR")).format(Date())
+        gameAdapter.scheduled = Scheduler.all(this).map { it.id }.toSet()
+        lifecycleScope.launch {
+            if (gameAdapter.items.isEmpty()) { loading.visibility = View.VISIBLE; loadingText.text = "Buscando jogos de hoje…" }
+            val games = try { Games.today(force) } catch (e: Exception) { emptyList() }
+            loading.visibility = View.GONE
+            if (tab != Tab.GAMES) return@launch
+            gameAdapter.items = games
+            empty.visibility = if (games.isEmpty()) View.VISIBLE else View.GONE
+            empty.text = "Nenhum jogo encontrado para hoje.\nVerifique a internet e tente o botão de atualizar."
+        }
+    }
+
+    private fun onGameClick(g: Game) {
+        val sched = Scheduler.all(this).firstOrNull { it.id == g.id }
+        val fmt = SimpleDateFormat("HH:mm", Locale.getDefault())
+        val upcoming = g.startMs > System.currentTimeMillis()
+        val options = ArrayList<Pair<String, () -> Unit>>()
+        options.add("▶ Assistir agora" to { pickChannel(g) { ch -> current = ch; openFullscreen(listOf(ch), 0) } })
+        if (upcoming && sched == null) {
+            options.add("⏰ Agendar (abre 5 min antes, às ${fmt.format(Date(g.startMs - Scheduler.EARLY_MS))})" to {
+                pickChannel(g) { ch -> scheduleGame(g, ch) }
+            })
+        }
+        if (sched != null) {
+            options.add("✖ Cancelar agendamento (${sched.channelName})" to {
+                Scheduler.remove(this, g.id); toast("Agendamento cancelado"); loadGames()
+            })
+        }
+        val subtitle = if (g.startMs > 0) "${g.league} · ${fmt.format(Date(g.startMs))}" else g.league
+        AlertDialog.Builder(this)
+            .setTitle("${g.title}\n$subtitle")
+            .setItems(options.map { it.first }.toTypedArray()) { _, i -> options[i].second() }
+            .setNegativeButton("Voltar", null)
+            .show()
+    }
+
+    /** Escolhe em qual canal assistir o jogo (mostra os canais de esporte da lista). */
+    private fun pickChannel(g: Game, then: (Item) -> Unit) {
+        if (!Store.isLoaded(Kind.LIVE)) {
+            toast("Baixe os canais ao vivo primeiro")
+            tab = Tab.TV; showTab(Tab.TV); return
+        }
+        val chans = Games.sportsChannels()
+        if (chans.isEmpty()) { toast("Nenhum canal encontrado na sua lista"); return }
+        AlertDialog.Builder(this)
+            .setTitle("Em qual canal passa ${g.title}?")
+            .setItems(chans.map { if (it.number > 0) "${it.number}  ${it.name}" else it.name }.toTypedArray()) { _, i -> then(chans[i]) }
+            .setNegativeButton("Voltar", null)
+            .show()
+    }
+
+    private fun scheduleGame(g: Game, ch: Item) {
+        Scheduler.add(this, Schedule(g.id, g.title, ch.name, ch.url, g.startMs))
+        val fmt = SimpleDateFormat("HH:mm", Locale.getDefault())
+        toast("Agendado! ${ch.name} abre às ${fmt.format(Date(g.startMs - Scheduler.EARLY_MS))}")
+        loadGames()
+        askOverlayPermission()
+    }
+
+    /** Para abrir o canal sozinho com o app fechado, o Android pede "Sobrepor a outros apps". */
+    private fun askOverlayPermission() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M || Settings.canDrawOverlays(this)) return
+        AlertDialog.Builder(this)
+            .setTitle("Abrir sozinho na hora do jogo")
+            .setMessage("Com o GS IPTV aberto, o canal abre na hora certa.\n\nPara abrir mesmo com o app fechado, permita \"Sobrepor a outros apps\" para o GS IPTV.")
+            .setPositiveButton("Permitir") { _, _ ->
+                try {
+                    startActivity(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, android.net.Uri.parse("package:$packageName")))
+                } catch (e: Exception) { toast("Esta TV não tem essa opção. Deixe o app aberto na hora do jogo.") }
+            }
+            .setNegativeButton("Agora não", null)
+            .show()
+    }
+
+    private val scheduleCheck = object : Runnable {
+        override fun run() {
+            Scheduler.due(this@MainActivity)?.let { s ->
+                toast("Abrindo ${s.channelName} para ${s.title}")
+                Scheduler.open(this@MainActivity, s)
+            }
+            ui.postDelayed(this, 20_000)
+        }
+    }
+
+    // ---------------- Minha conta ----------------
+    private fun openAccount() {
+        lifecycleScope.launch {
+            loading.visibility = View.VISIBLE
+            loadingText.text = "Lendo seus dados…"
+            val rows = withContext(Dispatchers.IO) {
+                try {
+                    if (Store.isXtream(this@MainActivity)) Xtream.accountInfo(this@MainActivity)
+                    else listOf("Lista" to Store.listName(this@MainActivity), "Tipo" to "Link M3U")
+                } catch (e: Exception) { listOf("Conta" to "Não consegui falar com o servidor") }
+            }
+            loading.visibility = View.GONE
+            showAccount(rows)
+        }
+    }
+
+    private fun showAccount(rows: List<Pair<String, String>>) {
+        val agenda = Scheduler.all(this)
+        val fmt = SimpleDateFormat("dd/MM HH:mm", Locale.getDefault())
+        val text = buildString {
+            rows.forEach { (k, v) -> append("$k:  $v\n") }
+            append("\nVersão do app:  ${BuildConfig.VERSION_NAME}\n")
+            append("Relógio na tela:  ${if (Store.clockOn(this@MainActivity)) "Ligado" else "Desligado"}\n")
+            if (agenda.isNotEmpty()) {
+                append("\nAgendamentos:\n")
+                agenda.forEach { append("• ${it.title} — ${it.channelName} (${fmt.format(Date(it.openAt))})\n") }
+            }
+        }
+        AlertDialog.Builder(this)
+            .setTitle("Minha conta")
+            .setMessage(text)
+            .setPositiveButton("Fechar", null)
+            .setNeutralButton(if (Store.clockOn(this)) "Desligar relógio" else "Mostrar relógio") { _, _ ->
+                Store.setClock(this, !Store.clockOn(this))
+                toast(if (Store.clockOn(this)) "Relógio fixo ligado nos canais" else "Relógio desligado")
+                showAccount(rows)
+            }
+            .setNegativeButton("Trocar login") { _, _ -> openSendList() }
+            .show()
     }
 
     private fun confirmExit() {
@@ -254,6 +397,7 @@ class MainActivity : AppCompatActivity() {
         vodCatList.onLeft = {}
         vodCatList.onRight = { cardFan.requestFocus() }
         cardFan.onUp = toTabs
+        gamesList.onUp = toTabs
         spiral.onUp = toTabs
         cardFan.onLeftEdge = { vodCatList.focusPosition(vodCatAdapter.selected) }
         channelsList.setHasFixedSize(true)
@@ -262,7 +406,7 @@ class MainActivity : AppCompatActivity() {
         // Sem animação de troca: assim o foco do controle não "pula"
         listOf(liveCatList, vodCatList, channelsList).forEach { it.itemAnimator = null }
         // Botões do topo: para baixo vai para as abas
-        listOf(R.id.btnSearch, R.id.btnSend, R.id.btnRefresh, R.id.btnSettings).forEach { id ->
+        listOf(R.id.btnSearch, R.id.btnSend, R.id.btnRefresh, R.id.btnAccount, R.id.btnSettings).forEach { id ->
             findViewById<View>(id).setOnKeyListener { _, code, ev ->
                 if (ev.action == android.view.KeyEvent.ACTION_DOWN && code == android.view.KeyEvent.KEYCODE_DPAD_DOWN) {
                     tabViews[tab.ordinal].requestFocus(); true
@@ -277,6 +421,7 @@ class MainActivity : AppCompatActivity() {
             sectionPanel.visibility == View.VISIBLE -> showPanel(kindsFor(tab).firstOrNull { !Store.isLoaded(it) })
             tab == Tab.TV -> liveCatList.focusPosition(liveCatAdapter.selected)
             tab == Tab.HIGHLIGHTS -> spiral.requestFocus()
+            tab == Tab.GAMES -> gamesList.focusPosition(0)
             else -> vodCatList.focusPosition(vodCatAdapter.selected)
         }
     }
@@ -292,6 +437,7 @@ class MainActivity : AppCompatActivity() {
             liveView.visibility = View.GONE
             vodView.visibility = View.GONE
             highlightView.visibility = View.GONE
+            gamesView.visibility = View.GONE
             empty.visibility = View.GONE
             showPanel(missing.first())
             return
@@ -303,7 +449,14 @@ class MainActivity : AppCompatActivity() {
         empty.text = "Sua lista não tem conteúdo para a aba ${t.label}."
 
         highlightView.visibility = View.GONE
-        if (t == Tab.HIGHLIGHTS) {
+        gamesView.visibility = View.GONE
+        if (t == Tab.GAMES) {
+            liveView.visibility = View.GONE
+            vodView.visibility = View.GONE
+            empty.visibility = View.GONE
+            gamesView.visibility = View.VISIBLE
+            loadGames()
+        } else if (t == Tab.HIGHLIGHTS) {
             liveView.visibility = View.GONE
             vodView.visibility = View.GONE
             highlightView.visibility = if (list.isEmpty()) View.GONE else View.VISIBLE
@@ -345,6 +498,7 @@ class MainActivity : AppCompatActivity() {
         Tab.SERIES -> listOf(Kind.SERIES)
         Tab.KIDS, Tab.ANIME -> listOf(Kind.MOVIE, Kind.SERIES)
         Tab.HIGHLIGHTS -> listOf(Kind.MOVIE)
+        Tab.GAMES -> emptyList()
     }
 
     private fun setupPanel() {
@@ -415,6 +569,7 @@ class MainActivity : AppCompatActivity() {
 
     /** Atualizar: baixa de novo o que já está aberto, ou mostra o painel. */
     private fun refreshAll() {
+        if (tab == Tab.GAMES) { loadGames(force = true); return }
         val open = Kind.values().filter { Store.isLoaded(it) }
         if (open.isEmpty()) showPanel(null) else loadKinds(open, force = true)
     }
@@ -501,6 +656,7 @@ class MainActivity : AppCompatActivity() {
 
     override fun onStart() {
         super.onStart()
+        ui.post(scheduleCheck)
         if (loaded && tab == Tab.TV && Store.isLoaded(Kind.LIVE)) {
             val sel = liveCatAdapter.selected
             val name = liveCats.getOrNull(sel)?.first
@@ -527,6 +683,7 @@ class MainActivity : AppCompatActivity() {
     override fun onStop() {
         super.onStop()
         ui.removeCallbacks(clockTick)
+        ui.removeCallbacks(scheduleCheck)
     }
 
     private fun toast(s: String) = Toast.makeText(this, s, Toast.LENGTH_SHORT).show()

@@ -60,6 +60,30 @@ object Xtream {
         return out
     }
 
+    /** Dados da conta (Minha conta). Retorna linhas "rótulo" to "valor". */
+    fun accountInfo(ctx: Context): List<Pair<String, String>> {
+        val l = Store.xtreamLogin(ctx)
+        val j = JSONObject(Net.getText("${l.server}/player_api.php?username=${enc(l.user)}&password=${enc(l.pass)}", 15_000))
+        val u = j.optJSONObject("user_info") ?: return listOf("Conta" to "Não foi possível ler os dados")
+        val fmt = java.text.SimpleDateFormat("dd/MM/yyyy HH:mm", java.util.Locale("pt", "BR"))
+        fun date(v: String): String = v.toLongOrNull()?.let { fmt.format(java.util.Date(it * 1000)) } ?: "Sem vencimento"
+        val exp = u.optString("exp_date")
+        val days = exp.toLongOrNull()?.let { ((it * 1000 - System.currentTimeMillis()) / 86_400_000L) }
+        val status = when (u.optString("status").lowercase()) {
+            "active" -> "Ativa"; "expired" -> "Vencida"; "banned" -> "Bloqueada"; "disabled" -> "Desativada"
+            else -> u.optString("status")
+        }
+        return listOf(
+            "Usuário" to u.optString("username"),
+            "Situação" to status,
+            "Vencimento" to date(exp) + (days?.let { if (it >= 0) "  (faltam $it dias)" else "" } ?: ""),
+            "Telas em uso" to "${u.optString("active_cons", "0")} de ${u.optString("max_connections", "?")}",
+            "Teste grátis" to if (u.optString("is_trial") == "1") "Sim" else "Não",
+            "Conta criada em" to date(u.optString("created_at")),
+            "Servidor" to java.net.URL(l.server).host,
+        )
+    }
+
     /** Confere usuário e senha no servidor. Retorna null se estiver tudo certo, ou a mensagem de erro. */
     fun checkLogin(server: String, user: String, pass: String): String? {
         val base = (if (server.startsWith("http")) server else "http://$server").trimEnd('/')

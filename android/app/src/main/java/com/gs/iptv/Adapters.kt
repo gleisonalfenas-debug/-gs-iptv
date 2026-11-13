@@ -135,3 +135,49 @@ class PosterAdapter(
         }
     }
 }
+
+/** Linhas dos jogos do dia. */
+class GameAdapter(
+    private val onClick: (Game) -> Unit,
+) : RecyclerView.Adapter<GameAdapter.VH>() {
+    var items: List<Game> = emptyList()
+        set(v) { field = v; notifyDataSetChanged() }
+    var scheduled: Set<String> = emptySet()
+
+    class VH(v: View) : RecyclerView.ViewHolder(v) {
+        val league: TextView = v.findViewById(R.id.league)
+        val home: TextView = v.findViewById(R.id.home)
+        val away: TextView = v.findViewById(R.id.away)
+        val time: TextView = v.findViewById(R.id.time)
+        val state: TextView = v.findViewById(R.id.state)
+        val homeBadge: ImageView = v.findViewById(R.id.homeBadge)
+        val awayBadge: ImageView = v.findViewById(R.id.awayBadge)
+        val alarm: ImageView = v.findViewById(R.id.alarm)
+    }
+
+    override fun onCreateViewHolder(p: ViewGroup, t: Int) =
+        VH(LayoutInflater.from(p.context).inflate(R.layout.item_game, p, false))
+
+    override fun getItemCount() = items.size
+
+    override fun onBindViewHolder(h: VH, pos: Int) {
+        val g = items[pos]
+        h.league.text = g.league
+        h.home.text = g.home
+        h.away.text = g.away
+        val fmt = java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault())
+        when {
+            g.finished() -> { h.time.text = "${g.homeScore} x ${g.awayScore}"; h.state.text = "Encerrado" }
+            g.started() -> { h.time.text = if (g.homeScore.isNotEmpty()) "${g.homeScore} x ${g.awayScore}" else fmt.format(java.util.Date(g.startMs)); h.state.text = "AO VIVO" }
+            g.startMs > 0 -> { h.time.text = fmt.format(java.util.Date(g.startMs)); h.state.text = "Hoje" }
+            else -> { h.time.text = "--:--"; h.state.text = "Horário a definir" }
+        }
+        if (g.homeBadge.isNotEmpty()) h.homeBadge.load(g.homeBadge) { size(96, 96) } else h.homeBadge.setImageDrawable(null)
+        if (g.awayBadge.isNotEmpty()) h.awayBadge.load(g.awayBadge) { size(96, 96) } else h.awayBadge.setImageDrawable(null)
+        h.alarm.visibility = if (scheduled.contains(g.id)) View.VISIBLE else View.INVISIBLE
+        h.itemView.setOnClickListener { _ ->
+            val p = h.bindingAdapterPosition
+            if (p != RecyclerView.NO_POSITION) onClick(items[p])
+        }
+    }
+}

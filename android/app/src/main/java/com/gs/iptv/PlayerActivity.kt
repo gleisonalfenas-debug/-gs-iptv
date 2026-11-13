@@ -63,6 +63,13 @@ class PlayerActivity : AppCompatActivity() {
         }
     }
     private val hideOverlayTask = Runnable { hideOverlay() }
+    private lateinit var clock: TextView
+    private val clockTick = object : Runnable {
+        override fun run() {
+            clock.text = java.text.SimpleDateFormat("HH:mm", Locale.getDefault()).format(java.util.Date())
+            ui.postDelayed(this, 15_000)
+        }
+    }
 
     private val isLive get() = queue.getOrNull(index)?.kind == Kind.LIVE
 
@@ -81,8 +88,19 @@ class PlayerActivity : AppCompatActivity() {
         chTitle = findViewById(R.id.chTitle)
 
         Http.warm(Store.playlistUrl(this))
-        queue = Store.playQueue
+        // Aberto por um agendamento: o canal vem no próprio pedido
+        val schedUrl = intent.getStringExtra("url")
+        if (schedUrl != null) {
+            queue = listOf(Item(intent.getStringExtra("name") ?: "Canal", schedUrl, "", "Agendado", Kind.LIVE, 0))
+            Store.playQueue = queue
+            intent.getStringExtra("title")?.let { Toast.makeText(this, "Agendamento: $it", Toast.LENGTH_LONG).show() }
+        } else {
+            queue = Store.playQueue
+        }
         index = savedInstanceState?.getInt("index") ?: intent.getIntExtra("index", 0)
+        findViewById<Logo3DView>(R.id.cornerLogo).compact = true
+        clock = findViewById(R.id.clock)
+        clock.visibility = if (Store.clockOn(this)) View.VISIBLE else View.GONE
         if (queue.isEmpty()) { finish(); return }
 
         catAdapter = CategoryAdapter { i -> showCategory(i) }
@@ -154,6 +172,7 @@ class PlayerActivity : AppCompatActivity() {
         })
         view.player = p
         player = p
+        if (clock.visibility == View.VISIBLE) ui.post(clockTick)
         play(index)
     }
 
