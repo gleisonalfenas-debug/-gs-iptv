@@ -32,7 +32,8 @@ object Xtream {
         readArray(api(l, action)) { o ->
             val id = (if (kind == Kind.SERIES) o["series_id"] else o["stream_id"]) ?: return@readArray
             val icon = (if (kind == Kind.SERIES) o["cover"] else o["stream_icon"]).orEmpty()
-            raw.add(arrayOf(o["name"].orEmpty(), id, icon, o["category_id"].orEmpty(), o["container_extension"].orEmpty()))
+            val stars = o["rating_5based"]?.toFloatOrNull() ?: o["rating"]?.toFloatOrNull()?.div(2f) ?: 0f
+            raw.add(arrayOf(o["name"].orEmpty(), id, icon, o["category_id"].orEmpty(), o["container_extension"].orEmpty(), stars.toString()))
             if (raw.size % 1000 == 0) progress("Baixando ${Store.label(kind)}… ${raw.size}")
         }
         catThread.join(15_000)
@@ -42,8 +43,8 @@ object Xtream {
             val group = cats[r[3]] ?: fallback
             when (kind) {
                 Kind.LIVE -> out.add(Store.make(r[0], "${Store.XT}live/${r[1]}.ts", r[2], group, Kind.LIVE, ++n))
-                Kind.MOVIE -> out.add(Store.make(r[0], "${Store.XT}movie/${r[1]}.${r[4].ifEmpty { "mp4" }}", r[2], group, Kind.MOVIE, 0))
-                Kind.SERIES -> out.add(Store.make(r[0], "$SERIES_PREFIX${r[1]}", r[2], group, Kind.SERIES, 0))
+                Kind.MOVIE -> out.add(Store.make(r[0], "${Store.XT}movie/${r[1]}.${r[4].ifEmpty { "mp4" }}", r[2], group, Kind.MOVIE, 0, r[5].toFloatOrNull() ?: 0f))
+                Kind.SERIES -> out.add(Store.make(r[0], "$SERIES_PREFIX${r[1]}", r[2], group, Kind.SERIES, 0, r[5].toFloatOrNull() ?: 0f))
             }
         }
         return out
@@ -92,7 +93,7 @@ object Xtream {
     }
 
     /** Dados completos da série: sinopse, gênero, ano e episódios por temporada. */
-    data class SeriesInfo(val plot: String, val genre: String, val year: String, val cover: String, val seasons: LinkedHashMap<String, List<Item>>)
+    data class SeriesInfo(val plot: String, val genre: String, val year: String, val cover: String, val seasons: LinkedHashMap<String, List<Item>>, val rating: Float = 0f)
 
     fun seriesInfo(ctx: Context, seriesUrl: String, seriesName: String, logo: String): SeriesInfo {
         val l = Store.xtreamLogin(ctx)
@@ -120,7 +121,8 @@ object Xtream {
             }
         }
         fun s(k: String) = info?.optString(k).orEmpty().let { if (it == "null") "" else it }
-        return SeriesInfo(s("plot"), s("genre"), (s("releaseDate").ifEmpty { s("release_date") }).take(4), s("cover").ifEmpty { logo }, seasons)
+        val rating = s("rating_5based").toFloatOrNull() ?: s("rating").toFloatOrNull()?.div(2f) ?: 0f
+        return SeriesInfo(s("plot"), s("genre"), (s("releaseDate").ifEmpty { s("release_date") }).take(4), s("cover").ifEmpty { logo }, seasons, rating)
     }
 
     /** Episódios de uma série, já com o link para tocar. */
@@ -179,7 +181,7 @@ object Xtream {
     }
 
     private val KEYS = setOf("stream_id", "series_id", "name", "stream_icon", "cover", "category_id",
-        "category_name", "container_extension", "auth", "status")
+        "category_name", "container_extension", "auth", "status", "rating", "rating_5based")
 
     /** Lê só os campos usados (economiza muita memória em listas grandes). */
     private fun readObject(r: JsonReader): Map<String, String> {

@@ -21,6 +21,8 @@ data class Item(
     val number: Int,
     /** 0 = normal, 1 = kids, 2 = anime (calculado uma vez ao carregar) */
     val section: Int = 0,
+    /** Nota do servidor, de 0 a 5 estrelas (0 = sem nota). */
+    val rating: Float = 0f,
 )
 
 /** Uma aba já organizada: todos os itens e as categorias. */
@@ -35,8 +37,8 @@ object Store {
 
     @Volatile private var tabs: Map<Tab, TabData> = emptyMap()
 
-    private val groupPool = HashMap<String, String>()
-    private val sectionCache = HashMap<String, Int>()
+    private val groupPool = java.util.concurrent.ConcurrentHashMap<String, String>()
+    private val sectionCache = java.util.concurrent.ConcurrentHashMap<String, Int>()
 
     /** Cria um item reaproveitando textos repetidos (economiza memória). */
     // Tira "Canais", "Filmes", "Séries", "VOD" do começo do nome da categoria
@@ -44,10 +46,9 @@ object Store {
 
     private val makeLock = Any()
 
-    fun make(name: String, url: String, logo: String, group: String, kind: Kind, number: Int): Item = synchronized(makeLock) {
-        // Tira o "Canais" do começo do nome da categoria (ex.: "CANAIS | ESPORTES" -> "ESPORTES")
-        val shown = group.replace(prefixCanais, "").ifEmpty { group }
-        val g = groupPool.getOrPut(shown) { shown }
+    /** Cria um item. Rápido: nome da categoria e tipo (kids/anime) calculados uma vez por categoria. */
+    fun make(name: String, url: String, logo: String, group: String, kind: Kind, number: Int, rating: Float = 0f): Item {
+        val g = groupPool.getOrPut(group) { group.replace(prefixCanais, "").ifEmpty { group } }
         val sec = sectionCache.getOrPut(g) {
             val n = norm(g)
             when {
@@ -56,7 +57,7 @@ object Store {
                 else -> 0
             }
         }
-        Item(name, url, logo, g, kind, number, sec)
+        return Item(name, url, logo, g, kind, number, sec, rating)
     }
 
     /** Links do Xtream são guardados curtos ("xt:live/123.ts") e montados na hora de tocar. */
@@ -231,13 +232,13 @@ object Store {
     }
 
     /** Baixa (ou abre a cópia salva) só de uma seção: canais, filmes ou séries. */
-    private val loadMutex = kotlinx.coroutines.sync.Mutex()
+    private val loadMutex = Kind.values().associateWith { kotlinx.coroutines.sync.Mutex() }
 
-    /** Uma carga de cada vez (evita duas cargas da mesma parte se atrapalhando). */
+    /** Canais, filmes e séries carregam AO MESMO TEMPO; só a mesma parte espera a anterior. */
     suspend fun loadSection(
         ctx: Context, kind: Kind, force: Boolean = false, progress: (String) -> Unit = {}, allowStale: Boolean = false,
     ): List<Item> =
-        loadMutex.withLock {
+        loadMutex.getValue(kind).withLock {
             if (!force) synchronized(loaded) { loaded[kind] }?.let { return@withLock it }
             loadSectionLocked(ctx, kind, force, progress, allowStale)
         }
@@ -265,42 +266,39 @@ object Store {
             }
             progress("Abrindo ${label(kind)}…")
             val list = if (cache.exists()) readCache(cache) else emptyList()
-            synchronized(makeLock) { groupPool.clear() }
             synchronized(loaded) { loaded[kind] = list }
             progress("Organizando ${list.size} itens…")
-            rebuild()
+            rebuild(kind)
             Diag.listLoaded(label(kind) + if (force) " (atualizado)" else "", list.size, System.currentTimeMillis() - started)
             list
         }
 
     fun label(kind: Kind) = when (kind) { Kind.LIVE -> "canais ao vivo"; Kind.MOVIE -> "filmes"; Kind.SERIES -> "séries" }
 
-    private fun rebuild() {
-        val all = synchronized(loaded) { Kind.values().flatMap { loaded[it] ?: emptyList() } }
-        buildTabs(all)
-        items = all
-    }
-
-    private fun buildTabs(list: List<Item>) {
-        val map = HashMap<Tab, TabData>()
-        for (t in Tab.values()) {
-            if (t == Tab.HIGHLIGHTS) { map[t] = highlights(list); continue }
-            if (t == Tab.GAMES || t == Tab.HOME) { map[t] = TabData(emptyList(), emptyList()); continue }
-            val tabItems = list.filter { i ->
-                when (t) {
-                    Tab.HIGHLIGHTS, Tab.GAMES, Tab.HOME -> false
-                    Tab.TV -> i.kind == Kind.LIVE
-                    Tab.MOVIES -> i.kind == Kind.MOVIE && i.section != 1
-                    Tab.SERIES -> i.kind == Kind.SERIES && i.section != 1
-                    Tab.KIDS -> i.kind != Kind.LIVE && i.section == 1
-                    Tab.ANIME -> i.kind != Kind.LIVE && i.section == 2
-                }
-            }
+    /** Reorganiza só as abas da parte que mudou (as outras ficam como estão). */
+    private fun rebuild(kind: Kind) = synchronized(this) {
+        val live = synchronized(loaded) { loaded[Kind.LIVE] } ?: emptyList()
+        val movies = synchronized(loaded) { loaded[Kind.MOVIE] } ?: emptyList()
+        val series = synchronized(loaded) { loaded[Kind.SERIES] } ?: emptyList()
+        val map = HashMap(tabs)
+        fun put(t: Tab, list: List<Item>) {
             val groups = LinkedHashMap<String, MutableList<Item>>()
-            tabItems.forEach { groups.getOrPut(it.group) { ArrayList() }.add(it) }
-            map[t] = TabData(tabItems, groups.map { it.key to it.value as List<Item> })
+            list.forEach { groups.getOrPut(it.group) { ArrayList() }.add(it) }
+            map[t] = TabData(list, groups.map { it.key to it.value as List<Item> })
         }
+        when (kind) {
+            Kind.LIVE -> put(Tab.TV, live)
+            Kind.MOVIE -> { put(Tab.MOVIES, movies.filter { it.section != 1 }); map[Tab.HIGHLIGHTS] = highlights(movies) }
+            Kind.SERIES -> put(Tab.SERIES, series.filter { it.section != 1 })
+        }
+        if (kind != Kind.LIVE) {
+            put(Tab.KIDS, movies.filter { it.section == 1 } + series.filter { it.section == 1 })
+            put(Tab.ANIME, movies.filter { it.section == 2 } + series.filter { it.section == 2 })
+        }
+        map.putIfAbsent(Tab.HOME, TabData(emptyList(), emptyList()))
+        map.putIfAbsent(Tab.GAMES, TabData(emptyList(), emptyList()))
         tabs = map
+        items = live + movies + series
     }
 
     private val qualityWords = Regex("\\b(fhd|uhd|hd|sd|4k|8k|h265|h\\.265|hevc|alt|alternativo|backup|op\\d*|opcao|opção|\\d{3,4}p)\\b", RegexOption.IGNORE_CASE)
@@ -386,32 +384,47 @@ object Store {
             f.delete()
             tmps[k]!!.renameTo(f)
         }
-        synchronized(makeLock) { groupPool.clear() }
     }
 
     private fun line(i: Item) =
-        "${i.kind.ordinal}\t${i.number}\t${clean(i.name)}\t${clean(i.group)}\t${clean(i.logo)}\t${clean(i.url)}\n"
+        "${i.kind.ordinal}\t${i.number}\t${clean(i.name)}\t${clean(i.group)}\t${clean(i.logo)}\t${clean(i.url)}\t${i.rating}\n"
 
     private fun clean(s: String) = s.replace('\t', ' ').replace('\n', ' ').replace('\r', ' ')
 
     private fun writeCache(file: File, list: List<Item>) {
-        val tmp = File(file.parentFile, "items.tmp")
+        val tmp = File(file.parentFile, file.name + ".tmp")
         tmp.bufferedWriter().use { w -> for (i in list) w.write(line(i)) }
         file.delete()
         tmp.renameTo(file)
     }
 
+    /** Lê a cópia salva bem rápido (sem expressões, buffer grande). */
     private fun readCache(file: File): List<Item> {
-        val out = ArrayList<Item>()
+        val out = ArrayList<Item>((file.length() / 90).toInt().coerceIn(16, 400_000))
         val kinds = Kind.values()
-        file.bufferedReader().useLines { lines ->
-            lines.forEach { l ->
-                val f = l.split('\t')
-                if (f.size >= 6) out.add(make(f[2], f[5], f[4], f[3], kinds.getOrElse(f[0].toIntOrNull() ?: 0) { Kind.LIVE }, f[1].toIntOrNull() ?: 0))
+        val f = arrayOfNulls<String>(7)
+        file.inputStream().bufferedReader(Charsets.UTF_8).let { java.io.BufferedReader(it, 256 * 1024) }.use { r ->
+            while (true) {
+                val l = r.readLine() ?: break
+                var start = 0; var n = 0
+                while (n < 7) {
+                    val tab = l.indexOf('\t', start)
+                    if (tab < 0) { f[n++] = l.substring(start); break }
+                    f[n++] = l.substring(start, tab); start = tab + 1
+                }
+                if (n < 6) continue
+                out.add(make(f[2]!!, f[5]!!, f[4]!!, f[3]!!, kinds.getOrElse(f[0]!!.toIntOrNull() ?: 0) { Kind.LIVE },
+                    f[1]!!.toIntOrNull() ?: 0, if (n >= 7) f[6]!!.toFloatOrNull() ?: 0f else 0f))
             }
         }
         return out
     }
+
+    // ---------- Estrelas (sua nota) ----------
+    private fun starsPrefs(ctx: Context) = ctx.applicationContext.getSharedPreferences("gs_stars", Context.MODE_PRIVATE)
+    fun userStars(ctx: Context, url: String) = starsPrefs(ctx).getInt(url, 0)
+    fun setUserStars(ctx: Context, url: String, stars: Int) =
+        starsPrefs(ctx).edit().apply { if (stars <= 0) remove(url) else putInt(url, stars) }.apply()
 
     // ---------- Leitor de M3U ----------
     private val reLogo = Regex("tvg-logo=\"([^\"]*)\"")

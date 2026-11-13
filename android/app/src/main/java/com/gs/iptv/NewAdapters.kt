@@ -100,9 +100,26 @@ class LiveRowAdapter(
     }
 }
 
-/** Grade de capas (filmes, séries). Com [progress] mostra a barra do "continuar assistindo". */
+/** Estrelas em texto: ★★★★☆ (meia estrela arredonda para cima a partir de 0,5). */
+fun starText(stars: Float): String {
+    val full = (stars + 0.25f).toInt().coerceIn(0, 5)
+    return "★".repeat(full) + "☆".repeat(5 - full)
+}
+
+/** Linha de estrelas do item: nota do servidor e, se houver, a sua nota. */
+fun starLine(ctx: Context, it: Item): String {
+    val mine = Store.userStars(ctx, it.url)
+    return when {
+        mine > 0 -> "${starText(mine.toFloat())}  sua nota"
+        it.rating > 0f -> "${starText(it.rating)}  ${String.format(Locale("pt", "BR"), "%.1f", it.rating)}"
+        else -> it.group
+    }
+}
+
+/** Grade de capas (filmes, séries) com estrelas; segurar OK = dar estrelas. */
 class GridAdapter(
     private val showImages: () -> Boolean,
+    private val onLong: (Item) -> Unit = {},
     private val onClick: (Int) -> Unit,
 ) : RecyclerView.Adapter<GridAdapter.VH>() {
     var items: List<Item> = emptyList()
@@ -124,7 +141,8 @@ class GridAdapter(
     override fun onBindViewHolder(h: VH, pos: Int) {
         val it = items[pos]
         h.title.text = it.name
-        h.meta.text = it.group
+        h.meta.text = if (it.kind == Kind.LIVE) it.group else starLine(h.itemView.context, it)
+        h.meta.setTextColor(if (Store.userStars(h.itemView.context, it.url) > 0 || it.rating > 0f) Color.parseColor("#F0C45C") else Color.parseColor("#8B8F9C"))
         h.placeholder.text = it.name
         h.frame.background = GradientDrawable(GradientDrawable.Orientation.TL_BR,
             intArrayOf(colorOf(it.name), Color.parseColor("#15171D"))).apply { cornerRadius = 12 * h.itemView.resources.displayMetrics.density }
@@ -140,6 +158,7 @@ class GridAdapter(
             else Motion.stopKenBurns(h.poster)
         }
         h.itemView.setOnClickListener { _ -> val p = h.bindingAdapterPosition; if (p != RecyclerView.NO_POSITION) onClick(p) }
+        h.itemView.setOnLongClickListener { _ -> val p = h.bindingAdapterPosition; if (p != RecyclerView.NO_POSITION) onLong(items[p]); true }
     }
 }
 

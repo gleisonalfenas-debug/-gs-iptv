@@ -134,7 +134,11 @@ class TileAdapter(
 
     override fun onBindViewHolder(h: VH, pos: Int) {
         val it = row.items[pos]
-        h.label.text = if (it.number > 0 && !row.posters) "${it.number}  ${it.name}" else it.name
+        h.label.text = when {
+            it.number > 0 && !row.posters -> "${it.number}  ${it.name}"
+            it.kind != Kind.LIVE && (it.rating > 0f || Store.userStars(h.root.context, it.url) > 0) -> "${it.name}\n${starLine(h.root.context, it)}"
+            else -> it.name
+        }
         if (!lite && it.logo.isNotEmpty()) h.image.load(it.logo) { size(300, 450) } else h.image.setImageDrawable(null)
         if (lite) h.label.gravity = Gravity.CENTER
         h.root.setOnFocusChangeListener { v, has ->

@@ -76,9 +76,22 @@ class SeriesActivity : AppCompatActivity() {
                 Toast.makeText(this@SeriesActivity, "Nenhum episódio encontrado", Toast.LENGTH_LONG).show()
                 return@launch
             }
-            findViewById<TextView>(R.id.meta).text = listOf(info.genre, info.year, "${info.seasons.size} temporada${if (info.seasons.size > 1) "s" else ""}")
-                .filter { it.isNotBlank() }.joinToString(" · ")
+
             findViewById<TextView>(R.id.plot).text = info.plot
+            // estrelas: nota do servidor e a sua (segure OK no botão para dar a sua nota)
+            val item = Item(name, url, logo, group, Kind.SERIES, 0, 0, info.rating)
+            val meta = findViewById<TextView>(R.id.meta)
+            fun stars() { meta.text = listOf(starLine(this@SeriesActivity, item).takeIf { item.rating > 0f || Store.userStars(this@SeriesActivity, url) > 0 } ?: "", info.genre, info.year)
+                .filter { it.isNotBlank() }.joinToString("  ·  ") }
+            stars()
+            resume.setOnLongClickListener {
+                val opts = (1..5).map { n -> "${starText(n.toFloat())}  $n" } + listOf("Remover minha nota")
+                androidx.appcompat.app.AlertDialog.Builder(this@SeriesActivity).setTitle("Dar estrelas: $name")
+                    .setSingleChoiceItems(opts.toTypedArray(), Store.userStars(this@SeriesActivity, url) - 1) { d, i ->
+                        Store.setUserStars(this@SeriesActivity, url, if (i < 5) i + 1 else 0); stars(); d.dismiss()
+                    }.setNegativeButton("Fechar", null).show()
+                true
+            }
             if (!lite && info.cover.isNotEmpty()) cover.load(info.cover) { size(500, 700) }
             if (!lite) {
                 val box = findViewById<android.widget.FrameLayout>(R.id.coverBox)

@@ -424,7 +424,7 @@ class MainActivity : AppCompatActivity() {
         chips = findViewById(R.id.chips)
         vodGrid = findViewById(R.id.vodGrid)
         chipAdapter = ChipAdapter { i -> showVodCategory(i) }
-        gridAdapter = GridAdapter({ !lite }) { i -> openItem(gridAdapter.items, i) }
+        gridAdapter = GridAdapter({ !lite }, onLong = { item -> rate(item) }) { i -> openItem(gridAdapter.items, i) }
         chips.layoutManager = LinearLayoutManager(this, LinearLayoutManager.HORIZONTAL, false)
         chips.adapter = chipAdapter; chips.itemAnimator = null
         chips.onLeftEdge = toRail
@@ -740,6 +740,27 @@ class MainActivity : AppCompatActivity() {
             }.setNegativeButton("Fechar", null).show()
     }
 
+    // ================= Estrelas =================
+    /** Dar estrelas a um filme ou série (segurar OK na capa). */
+    private fun rate(item: Item) {
+        if (item.kind == Kind.LIVE) return
+        val cur = Store.userStars(this, item.url)
+        val server = if (item.rating > 0f) "Nota do servidor: ${starText(item.rating)} ${String.format(Locale("pt", "BR"), "%.1f", item.rating)}\n\n" else ""
+        val opts = (1..5).map { n -> "${starText(n.toFloat())}  $n estrela${if (n > 1) "s" else ""}" } + listOf("Remover minha nota")
+        AlertDialog.Builder(this)
+            .setTitle("Dar estrelas: ${item.name}")
+            .setSingleChoiceItems(opts.toTypedArray(), if (cur in 1..5) cur - 1 else -1) { d, i ->
+                Store.setUserStars(this, item.url, if (i < 5) i + 1 else 0)
+                toast(if (i < 5) "Você deu ${i + 1} estrela${if (i > 0) "s" else ""}" else "Nota removida")
+                gridAdapter.notifyItemRangeChanged(0, gridAdapter.itemCount)
+                d.dismiss()
+            }
+            .setMessage(null)
+            .setNegativeButton("Fechar", null)
+            .also { if (server.isNotEmpty()) toast(server.trim()) }
+            .show()
+    }
+
     // ================= Abrir conteúdo =================
     private fun openItem(list: List<Item>, i: Int) {
         val item = list.getOrNull(i) ?: return
@@ -815,16 +836,20 @@ class MainActivity : AppCompatActivity() {
             sectionPanel.visibility = View.GONE
             if (!silent) loading.visibility = View.VISIBLE
             var failed = false
-            for (k in kinds) {
-                loadingText.text = "Preparando ${Store.label(k)}…"
-                try {
-                    Store.loadSection(this@MainActivity, k, force, { msg -> if (!silent) runOnUiThread { loadingText.text = msg } }, allowStale = silent)
-                } catch (e: OutOfMemoryError) {
-                    failed = true; toast("Os ${Store.label(k)} são muitos para a memória desta TV.")
-                } catch (e: Exception) {
-                    failed = true; toast("Não foi possível baixar ${Store.label(k)}: ${e.message ?: "erro de conexão"}")
+            // as partes carregam ao mesmo tempo; cada uma aparece assim que fica pronta
+            val jobs = kinds.map { k ->
+                launch {
+                    try {
+                        Store.loadSection(this@MainActivity, k, force, { msg -> if (!silent) runOnUiThread { loadingText.text = msg } }, allowStale = silent)
+                        if (k in kindsFor(page) || page == Page.HOME) runOnUiThread { if (railItems.values.any { it.hasFocus() } || currentFocus == null) showPage(page) }
+                    } catch (e: OutOfMemoryError) {
+                        failed = true; toast("Os ${Store.label(k)} são muitos para a memória desta TV.")
+                    } catch (e: Exception) {
+                        failed = true; toast("Não foi possível baixar ${Store.label(k)}: ${e.message ?: "erro de conexão"}")
+                    }
                 }
             }
+            jobs.forEach { it.join() }
             loading.visibility = View.GONE
             loadingNow = false
             loaded = true
@@ -839,7 +864,7 @@ class MainActivity : AppCompatActivity() {
         lifecycleScope.launch {
             val t0 = System.currentTimeMillis()
             var changed = false
-            for (k in kinds) { try { Store.loadSection(this@MainActivity, k, force = true); changed = true } catch (_: Throwable) { } }
+            kinds.map { k -> launch { try { Store.loadSection(this@MainActivity, k, force = true); changed = true } catch (_: Throwable) { } } }.forEach { it.join() }
             Diag.log("Atualização em segundo plano: ${kinds.joinToString { Store.label(it) }} em ${System.currentTimeMillis() - t0}ms")
             if (changed && railItems.values.any { it.hasFocus() }) showPage(page)
         }
