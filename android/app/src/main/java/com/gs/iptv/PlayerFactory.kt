@@ -121,6 +121,18 @@ class SmartPlay(
         else -> "Erro ao abrir (${e.errorCodeName})"
     }
 
+    /** Força uma rota específica (usado nas "outras opções" quando o canal não abre). */
+    fun playDirect(item: Item, url: String) {
+        current = item
+        lastError = null
+        routes = listOf(url)
+        index = 0
+        start()
+    }
+
+    /** Todas as rotas possíveis do item atual. */
+    fun allRoutes(): List<String> = current?.let { Store.playRoutes(ctx, it) } ?: emptyList()
+
     private fun start() {
         val b = if (preview) Buffer.NORMAL else Buffer.current(ctx)
         val media = MediaItem.Builder()

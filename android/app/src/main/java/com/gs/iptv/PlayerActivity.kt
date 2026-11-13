@@ -101,7 +101,7 @@ class PlayerActivity : AppCompatActivity() {
             queue = Store.playQueue
         }
         index = savedInstanceState?.getInt("index") ?: intent.getIntExtra("index", 0)
-        findViewById<Logo3DView>(R.id.cornerLogo).apply {
+        findViewById<GlobeView>(R.id.cornerLogo).apply {
             compact = true
             visibility = if (Store.cornerLogoOn(this@PlayerActivity)) View.VISIBLE else View.GONE
         }
@@ -151,9 +151,10 @@ class PlayerActivity : AppCompatActivity() {
         val p = PlayerFactory.create(this)
         smart = SmartPlay(this, p, onStatus = { msg -> status = msg; osdInfo.text = infoText(); showOsd() }) {
             openStartedAt = 0
-            status = "${smart?.lastError ?: "Não foi possível abrir"} · aperte OK para escolher outro canal"
+            status = smart?.lastError ?: "Não foi possível abrir"
             osdInfo.text = status
             showOsd()
+            showFailOptions()
         }
         p.addListener(object : Player.Listener {
             override fun onTracksChanged(tracks: Tracks) {
@@ -384,6 +385,46 @@ class PlayerActivity : AppCompatActivity() {
             }
             .setNegativeButton("Voltar", null)
             .show()
+    }
+
+    // ---------- Canal não abriu: outras formas de abrir o mesmo canal ----------
+    private var failDialog: androidx.appcompat.app.AlertDialog? = null
+
+    private fun showFailOptions() {
+        val item = queue.getOrNull(index) ?: return
+        if (isFinishing || failDialog?.isShowing == true) return
+        val sp = smart ?: return
+        val opts = ArrayList<Pair<String, () -> Unit>>()
+        opts.add("Tentar de novo" to { play(index) })
+        // forçar cada formato (TS / HLS)
+        sp.allRoutes().forEach { route ->
+            val fmt = when { route.endsWith(".m3u8") -> "HLS (.m3u8)"; route.endsWith(".ts") -> "TS (.ts)"; else -> "link direto" }
+            opts.add("Abrir no formato $fmt" to { startRoute(item, route) })
+        }
+        // mesmo canal em outras versões da lista
+        Store.similarChannels(item).forEach { alt ->
+            opts.add("Outra opção: ${alt.name}" to {
+                val pos = queue.indexOfFirst { it.url == alt.url }
+                if (pos >= 0) play(pos) else { queue = listOf(alt) + queue; play(0) }
+            })
+        }
+        opts.add("Escolher outro canal" to { openOverlay(false) })
+        Diag.log("Ofereceu ${opts.size - 2} opções para \"${item.name}\"")
+        failDialog = androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle("${item.name} não abriu")
+            .setItems(opts.map { it.first }.toTypedArray()) { _, i -> opts[i].second() }
+            .setNegativeButton("Fechar", null)
+            .show()
+    }
+
+    private fun startRoute(item: Item, url: String) {
+        bitrate = 0
+        status = null
+        openStartedAt = System.currentTimeMillis()
+        osdName.text = item.name
+        osdInfo.text = "Conectando…"
+        showOsd()
+        smart?.playDirect(item, url)
     }
 
     // ---------- Painel na tela: idioma, legenda e resolução ----------

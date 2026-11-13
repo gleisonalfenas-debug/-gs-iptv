@@ -292,6 +292,19 @@ object Store {
         tabs = map
     }
 
+    private val qualityWords = Regex("\\b(fhd|uhd|hd|sd|4k|8k|h265|h\\.265|hevc|alt|alternativo|backup|op\\d*|opcao|opção|\\d{3,4}p)\\b", RegexOption.IGNORE_CASE)
+
+    /** Nome "base" do canal, sem HD/FHD/SD/4K/alternativo etc. */
+    fun baseName(name: String): String =
+        norm(name).replace(qualityWords, " ").replace(Regex("[^a-z0-9]+"), " ").trim()
+
+    /** Outras versões do mesmo canal na lista (ex.: HD, FHD, SD, alternativo). */
+    fun similarChannels(item: Item): List<Item> {
+        val base = baseName(item.name)
+        if (base.isEmpty()) return emptyList()
+        return tab(Tab.TV).items.filter { it.url != item.url && baseName(it.name) == base }.take(12)
+    }
+
     /** Categorias da TV (mesma lista na tela inicial e na lista do OK). */
     fun liveCategories(ctx: Context): List<Pair<String, List<Item>>> {
         val tv = tab(Tab.TV)

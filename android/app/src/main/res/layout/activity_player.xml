@@ -20,7 +20,7 @@
         android:gravity="center_vertical"
         android:orientation="horizontal">
 
-        <com.gs.iptv.Logo3DView
+        <com.gs.iptv.GlobeView
             android:id="@+id/cornerLogo"
             android:layout_width="64dp"
             android:layout_height="64dp"

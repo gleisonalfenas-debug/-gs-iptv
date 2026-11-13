@@ -5,13 +5,13 @@
     android:layout_height="match_parent"
     android:background="@drawable/bg_main">
 
-    <!-- Logo GS em 3D girando no fundo -->
-    <com.gs.iptv.Logo3DView
+    <!-- Globo terrestre 3D girando no fundo -->
+    <com.gs.iptv.GlobeView
         android:id="@+id/bgLogo"
         android:layout_width="600dp"
         android:layout_height="600dp"
         android:layout_gravity="center"
-        android:alpha="0.22" />
+        android:alpha="0.30" />
 
     <LinearLayout
         android:layout_width="match_parent"
