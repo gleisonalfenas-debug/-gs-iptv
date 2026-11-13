@@ -112,6 +112,13 @@ class MainActivity : AppCompatActivity() {
         })
 
         ListServer.start(this)
+        GsApp.takeCrash(application)?.let { crash ->
+            AlertDialog.Builder(this)
+                .setTitle("O app fechou da última vez")
+                .setMessage("Tire uma foto desta tela e envie para o suporte:\n\n" + crash.lines().take(14).joinToString("\n"))
+                .setPositiveButton("OK", null)
+                .show()
+        }
         if (!Store.hasList(this)) openSendList() else reload(force = false)
     }
 
@@ -178,10 +185,8 @@ class MainActivity : AppCompatActivity() {
         tab = t
         tabViews.forEachIndexed { i, v -> v.isSelected = i == t.ordinal }
         if (!loaded) return
-        val list = Store.forTab(t)
-        val groups = LinkedHashMap<String, MutableList<Item>>()
-        list.forEach { groups.getOrPut(it.group) { ArrayList() }.add(it) }
-
+        val data = Store.tab(t)
+        val list = data.items
         empty.visibility = if (list.isEmpty()) View.VISIBLE else View.GONE
         empty.text = "Sua lista não tem conteúdo para a aba ${t.label}."
 
@@ -192,7 +197,7 @@ class MainActivity : AppCompatActivity() {
             liveCats = buildList {
                 if (favs.isNotEmpty()) add("★ Favoritos" to list.filter { favs.contains(it.url) })
                 add("Todos" to list)
-                groups.forEach { (g, l) -> add(g to l) }
+                addAll(data.groups)
             }
             liveCatAdapter.items = liveCats.map { "${it.first}  (${it.second.size})" }
             showLiveCategory(0)
@@ -202,7 +207,7 @@ class MainActivity : AppCompatActivity() {
             pausePreview()
             vodCats = buildList {
                 add("Todos" to list)
-                groups.forEach { (g, l) -> add(g to l) }
+                addAll(data.groups)
             }
             vodCatAdapter.items = vodCats.map { "${it.first}  (${it.second.size})" }
             showVodCategory(0)
@@ -238,6 +243,9 @@ class MainActivity : AppCompatActivity() {
                     Store.items.firstOrNull { it.url == last && it.kind == Kind.LIVE }?.let { playPreview(it) }
                 }
                 tabViews[tab.ordinal].requestFocus()
+            } catch (e: OutOfMemoryError) {
+                empty.visibility = View.VISIBLE
+                empty.text = "Sua lista é grande demais para a memória desta TV.\nTente uma lista só com canais ao vivo."
             } catch (e: Exception) {
                 empty.visibility = View.VISIBLE
                 empty.text = "Não foi possível carregar a lista.\n${e.message ?: ""}\n\nAperte o ícone do celular para enviar outra lista."
@@ -290,7 +298,13 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun applySearch(q: String) {
-        val results = Store.search(q, tab)
+        lifecycleScope.launch {
+            val results = withContext(Dispatchers.Default) { Store.search(q, tab) }
+            showSearch(q, results)
+        }
+    }
+
+    private fun showSearch(q: String, results: List<Item>) {
         if (results.isEmpty()) { toast("Nada encontrado para \"$q\""); return }
         val entry = "Busca: $q" to results
         if (tab == Tab.TV) {
@@ -323,7 +337,7 @@ class MainActivity : AppCompatActivity() {
     private fun playPreview(item: Item) {
         current = item
         val p = ensurePlayer()
-        p.setMediaItem(MediaItem.fromUri(item.url))
+        p.setMediaItem(MediaItem.fromUri(Store.playUrl(this, item)))
         p.prepare()
         p.playWhenReady = true
         nowName.text = if (item.number > 0) "${item.number}  ${item.name}" else item.name

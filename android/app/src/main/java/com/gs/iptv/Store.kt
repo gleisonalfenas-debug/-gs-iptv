@@ -18,7 +18,12 @@ data class Item(
     val group: String,
     val kind: Kind,
     val number: Int,
+    /** 0 = normal, 1 = kids, 2 = anime (calculado uma vez ao carregar) */
+    val section: Int = 0,
 )
+
+/** Uma aba já organizada: todos os itens e as categorias. */
+class TabData(val items: List<Item>, val groups: List<Pair<String, List<Item>>>)
 
 /** Guarda a lista configurada, baixa, lê (M3U / Xtream) e mantém favoritos. */
 object Store {
@@ -26,6 +31,36 @@ object Store {
 
     @Volatile var items: List<Item> = emptyList()
         private set
+
+    @Volatile private var tabs: Map<Tab, TabData> = emptyMap()
+
+    private val groupPool = HashMap<String, String>()
+    private val sectionCache = HashMap<String, Int>()
+
+    /** Cria um item reaproveitando textos repetidos (economiza memória). */
+    fun make(name: String, url: String, logo: String, group: String, kind: Kind, number: Int): Item {
+        val g = groupPool.getOrPut(group) { group }
+        val sec = sectionCache.getOrPut(g) {
+            val n = norm(g)
+            when {
+                "anime" in n -> 2
+                "kids" in n || "infantil" in n || "desenho" in n || "crianca" in n -> 1
+                else -> 0
+            }
+        }
+        return Item(name, url, logo, g, kind, number, sec)
+    }
+
+    /** Links do Xtream são guardados curtos ("xt:live/123.ts") e montados na hora de tocar. */
+    const val XT = "xt:"
+
+    fun playUrl(ctx: Context, item: Item): String {
+        if (!item.url.startsWith(XT)) return item.url
+        val l = xtreamLogin(ctx)
+        val path = item.url.substring(XT.length) // ex.: live/123.ts
+        val slash = path.indexOf('/')
+        return "${l.server}/${path.substring(0, slash)}/${l.user}/${l.pass}${path.substring(slash)}"
+    }
 
     /** Lista usada pelo player em tela cheia para trocar de canal (cima/baixo). */
     var playQueue: List<Item> = emptyList()
@@ -144,9 +179,33 @@ object Store {
                 progress("Abrindo lista salva…")
                 list = readCache(cache)
             }
+            progress("Organizando ${list.size} itens…")
+            buildTabs(list)
             items = list
+            groupPool.clear()
             list
         }
+
+    private fun buildTabs(list: List<Item>) {
+        val map = HashMap<Tab, TabData>()
+        for (t in Tab.values()) {
+            val tabItems = list.filter { i ->
+                when (t) {
+                    Tab.TV -> i.kind == Kind.LIVE
+                    Tab.MOVIES -> i.kind == Kind.MOVIE && i.section == 0
+                    Tab.SERIES -> i.kind == Kind.SERIES && i.section == 0
+                    Tab.KIDS -> i.kind != Kind.LIVE && i.section == 1
+                    Tab.ANIME -> i.kind != Kind.LIVE && i.section == 2
+                }
+            }
+            val groups = LinkedHashMap<String, MutableList<Item>>()
+            tabItems.forEach { groups.getOrPut(it.group) { ArrayList() }.add(it) }
+            map[t] = TabData(tabItems, groups.map { it.key to it.value as List<Item> })
+        }
+        tabs = map
+    }
+
+    fun tab(t: Tab): TabData = tabs[t] ?: TabData(emptyList(), emptyList())
 
     fun isXtream(ctx: Context) = hasFixedServer || prefs(ctx).getString("type", "m3u") == "xtream"
 
@@ -201,7 +260,7 @@ object Store {
         file.bufferedReader().useLines { lines ->
             lines.forEach { l ->
                 val f = l.split('\t')
-                if (f.size >= 6) out.add(Item(f[2], f[5], f[4], f[3], kinds.getOrElse(f[0].toIntOrNull() ?: 0) { Kind.LIVE }, f[1].toIntOrNull() ?: 0))
+                if (f.size >= 6) out.add(make(f[2], f[5], f[4], f[3], kinds.getOrElse(f[0].toIntOrNull() ?: 0) { Kind.LIVE }, f[1].toIntOrNull() ?: 0))
             }
         }
         return out
@@ -231,7 +290,7 @@ object Store {
                 line.isNotEmpty() && !line.startsWith("#") && pending -> {
                     val kind = kindOf(line, group)
                     val n = if (kind == Kind.LIVE) ++liveNumber else 0
-                    out.add(Item(name.ifEmpty { "Sem nome" }, line, logo, group.ifEmpty { "Outros" }, kind, n))
+                    out.add(make(name.ifEmpty { "Sem nome" }, line, logo, group.ifEmpty { "Outros" }, kind, n))
                     pending = false
                 }
             }
@@ -254,18 +313,7 @@ object Store {
     }
 
     // ---------- Abas ----------
-    fun isKids(i: Item): Boolean { val g = norm(i.group); return "kids" in g || "infantil" in g || "desenho" in g || "crianca" in g }
-    fun isAnime(i: Item): Boolean = "anime" in norm(i.group)
-
-    fun forTab(tab: Tab): List<Item> = items.filter { i ->
-        when (tab) {
-            Tab.TV -> i.kind == Kind.LIVE
-            Tab.MOVIES -> i.kind == Kind.MOVIE && !isKids(i) && !isAnime(i)
-            Tab.SERIES -> i.kind == Kind.SERIES && !isKids(i) && !isAnime(i)
-            Tab.KIDS -> i.kind != Kind.LIVE && isKids(i)
-            Tab.ANIME -> i.kind != Kind.LIVE && isAnime(i)
-        }
-    }
+    fun forTab(tab: Tab): List<Item> = tab(tab).items
 
     fun search(query: String, tab: Tab): List<Item> {
         val q = norm(query)

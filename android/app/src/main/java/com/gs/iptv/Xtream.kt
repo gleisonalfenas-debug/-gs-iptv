@@ -26,7 +26,7 @@ object Xtream {
         var n = 0
         readArray(api(l, "get_live_streams")) { o ->
             val id = o["stream_id"] ?: return@readArray
-            out.add(Item(o["name"].orEmpty(), "${l.server}/live/${l.user}/${l.pass}/$id.ts",
+            out.add(Store.make(o["name"].orEmpty(), "${Store.XT}live/$id.ts",
                 o["stream_icon"].orEmpty(), liveCats[o["category_id"]] ?: "Outros", Kind.LIVE, ++n))
             if (n % 500 == 0) progress("Baixando canais ao vivo… $n")
         }
@@ -38,7 +38,7 @@ object Xtream {
             readArray(api(l, "get_vod_streams")) { o ->
                 val id = o["stream_id"] ?: return@readArray
                 val ext = o["container_extension"].orEmpty().ifEmpty { "mp4" }
-                out.add(Item(o["name"].orEmpty(), "${l.server}/movie/${l.user}/${l.pass}/$id.$ext",
+                out.add(Store.make(o["name"].orEmpty(), "${Store.XT}movie/$id.$ext",
                     o["stream_icon"].orEmpty(), vodCats[o["category_id"]] ?: "Filmes", Kind.MOVIE, 0))
                 if (++m % 1000 == 0) progress("Baixando filmes… $m")
             }
@@ -50,7 +50,7 @@ object Xtream {
             var s = 0
             readArray(api(l, "get_series")) { o ->
                 val id = o["series_id"] ?: return@readArray
-                out.add(Item(o["name"].orEmpty(), "$SERIES_PREFIX$id",
+                out.add(Store.make(o["name"].orEmpty(), "$SERIES_PREFIX$id",
                     o["cover"].orEmpty(), serCats[o["category_id"]] ?: "Séries", Kind.SERIES, 0))
                 if (++s % 500 == 0) progress("Baixando séries… $s")
             }
@@ -132,11 +132,16 @@ object Xtream {
         }
     }
 
+    private val KEYS = setOf("stream_id", "series_id", "name", "stream_icon", "cover", "category_id",
+        "category_name", "container_extension", "auth", "status")
+
+    /** Lê só os campos usados (economiza muita memória em listas grandes). */
     private fun readObject(r: JsonReader): Map<String, String> {
-        val m = HashMap<String, String>()
+        val m = HashMap<String, String>(8)
         r.beginObject()
         while (r.hasNext()) {
             val k = r.nextName()
+            if (k != "user_info" && k !in KEYS) { r.skipValue(); continue }
             when (r.peek()) {
                 JsonToken.STRING -> m[k] = r.nextString()
                 JsonToken.NUMBER -> m[k] = r.nextString()

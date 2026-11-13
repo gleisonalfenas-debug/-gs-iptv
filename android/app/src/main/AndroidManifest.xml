@@ -10,7 +10,9 @@
     <uses-feature android:name="android.hardware.touchscreen" android:required="false" />
 
     <application
+        android:name=".GsApp"
         android:allowBackup="true"
+        android:largeHeap="true"
         android:banner="@drawable/banner"
         android:icon="@drawable/ic_logo"
         android:label="GS IPTV"

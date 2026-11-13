@@ -67,7 +67,7 @@ class PlayerActivity : AppCompatActivity() {
         val live = item.kind == Kind.LIVE
         view.useController = !live
         player?.apply {
-            setMediaItem(MediaItem.fromUri(item.url))
+            setMediaItem(MediaItem.fromUri(Store.playUrl(this@PlayerActivity, item)))
             prepare()
             playWhenReady = true
         }
