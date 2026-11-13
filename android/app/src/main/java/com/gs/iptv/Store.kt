@@ -327,12 +327,17 @@ object Store {
         }
     }
 
-    /** Destaques: filmes das categorias de lançamentos/destaques; se não houver, os primeiros filmes. */
+    private val releaseKeys = listOf("lanc", "destaq", "novidad", "recente", "cinema", "estreia", "2026", "2025", "top", "novo")
+
+    /** Lançamentos de uma lista: categorias com nomes de lançamento; se não houver, os primeiros itens. */
+    fun releases(items: List<Item>, max: Int = 40): List<Item> {
+        val picked = items.filter { m -> norm(m.group).let { g -> releaseKeys.any { it in g } } }
+        return (if (picked.isNotEmpty()) picked else items).take(max)
+    }
+
+    /** Destaques: filmes lançamentos. */
     private fun highlights(list: List<Item>): TabData {
-        val keys = listOf("lanc", "destaq", "novidad", "recente", "cinema", "estreia", "2026", "2025", "top")
-        val movies = list.filter { it.kind == Kind.MOVIE }
-        val picked = movies.filter { m -> norm(m.group).let { g -> keys.any { it in g } } }
-        val result = (if (picked.isNotEmpty()) picked else movies).take(60)
+        val result = releases(list.filter { it.kind == Kind.MOVIE && it.section != 1 }, 60)
         return TabData(result, listOf("Destaques" to result))
     }
 

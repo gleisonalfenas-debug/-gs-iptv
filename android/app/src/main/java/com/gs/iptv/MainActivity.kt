@@ -260,6 +260,41 @@ class MainActivity : AppCompatActivity() {
 
     // ================= Início =================
     private var heroItem: Item? = null
+    private var heroList: List<Item> = emptyList()
+    private var heroIndex = 0
+    private val heroTick = object : Runnable {
+        override fun run() {
+            if (page != Page.HOME || heroList.size < 2) return
+            heroIndex = (heroIndex + 1) % heroList.size
+            showHero(animated = true)
+            ui.postDelayed(this, 8_000)
+        }
+    }
+
+    /** Mostra o lançamento atual no destaque do topo (com troca suave). */
+    private fun showHero(animated: Boolean = false) {
+        val featured = heroList.getOrNull(heroIndex) ?: return
+        heroItem = featured
+        val box = findViewById<android.widget.FrameLayout>(R.id.hero)
+        val apply = {
+            findViewById<TextView>(R.id.heroKind).text = when (featured.kind) {
+                Kind.MOVIE -> if (Store.isKids(featured)) "KIDS · LANÇAMENTO" else "FILME · LANÇAMENTO"
+                Kind.SERIES -> if (Store.isKids(featured)) "KIDS · LANÇAMENTO" else "SÉRIE · LANÇAMENTO"
+                else -> "AO VIVO"
+            }
+            findViewById<TextView>(R.id.heroTitle).text = featured.name
+            findViewById<TextView>(R.id.heroMeta).text = "${featured.group}${if (heroList.size > 1) "   ·   ${heroIndex + 1}/${heroList.size}" else ""}"
+            val heroImg = findViewById<ImageView>(R.id.heroImg)
+            box.clipToOutline = true
+            box.outlineProvider = android.view.ViewOutlineProvider.BACKGROUND
+            if (!lite && featured.logo.isNotEmpty()) {
+                heroImg.load(featured.logo) { size(900, 500) }
+                heroImg.post { Motion.kenBurns(heroImg, slow = true) }
+            } else { heroImg.setImageDrawable(null); Motion.stopKenBurns(heroImg) }
+        }
+        if (animated) box.animate().alpha(0.2f).setDuration(220).withEndAction { apply(); box.animate().alpha(1f).setDuration(320).start() }.start()
+        else apply()
+    }
 
     private fun setupHome() {
         val hero = findViewById<View>(R.id.hero)
@@ -267,7 +302,7 @@ class MainActivity : AppCompatActivity() {
         hero.setOnKeyListener { _, code, ev ->
             if (ev.action == KeyEvent.ACTION_DOWN && code == KeyEvent.KEYCODE_DPAD_LEFT) { focusRail(); true } else false
         }
-        listOf(R.id.contRow, R.id.favRow, R.id.newRow).forEach { id ->
+        listOf(R.id.contRow, R.id.favRow, R.id.newRow, R.id.seriesRow, R.id.kidsRow).forEach { id ->
             findViewById<HRow>(id).apply {
                 layoutManager = LinearLayoutManager(this@MainActivity, LinearLayoutManager.HORIZONTAL, false)
                 itemAnimator = null
@@ -285,20 +320,18 @@ class MainActivity : AppCompatActivity() {
             pages[Page.HOME]?.visibility = View.GONE
             showPanel(Kind.LIVE); return
         }
-        // destaque
-        val featured = movies.firstOrNull() ?: live.firstOrNull { it.url == Store.lastUrl(this) } ?: live.firstOrNull()
-        heroItem = featured
-        findViewById<TextView>(R.id.heroKind).text = when (featured?.kind) { Kind.MOVIE -> "LANÇAMENTO"; Kind.SERIES -> "SÉRIE"; else -> "AO VIVO" }
-        findViewById<TextView>(R.id.heroTitle).text = featured?.name ?: ""
-        findViewById<TextView>(R.id.heroMeta).text = featured?.group ?: ""
-        val heroImg = findViewById<ImageView>(R.id.heroImg)
-        val heroBox = findViewById<android.widget.FrameLayout>(R.id.hero)
-        heroBox.clipToOutline = true
-        heroBox.outlineProvider = android.view.ViewOutlineProvider.BACKGROUND
-        if (!lite && featured != null && featured.logo.isNotEmpty()) {
-            heroImg.load(featured.logo) { size(900, 500) }
-            heroImg.post { Motion.kenBurns(heroImg, slow = true) }   // destaque sempre em movimento
-        } else { heroImg.setImageDrawable(null); Motion.stopKenBurns(heroImg) }
+        // lançamentos de filmes, séries e kids
+        val newMovies = Store.releases(Store.tab(Tab.MOVIES).items, 30)
+        val newSeries = Store.releases(Store.tab(Tab.SERIES).items, 30)
+        val newKids = Store.releases(Store.tab(Tab.KIDS).items, 30)
+        // destaque: passa sozinho pelos lançamentos (a cada 8 s)
+        heroList = (newMovies.take(5) + newSeries.take(4) + newKids.take(3)).ifEmpty {
+            listOfNotNull(live.firstOrNull { it.url == Store.lastUrl(this) } ?: live.firstOrNull())
+        }
+        heroIndex = 0
+        showHero()
+        ui.removeCallbacks(heroTick)
+        if (heroList.size > 1) ui.postDelayed(heroTick, 8_000)
 
         // continuar assistindo
         val cont = Watch.list(this)
@@ -312,13 +345,17 @@ class MainActivity : AppCompatActivity() {
         val favList = live.filter { favs.contains(it.url) }.ifEmpty { live.take(20) }
         findViewById<TextView>(R.id.favTitle).text = if (live.any { favs.contains(it.url) }) "Canais favoritos" else "Canais"
         findViewById<HRow>(R.id.favRow).adapter = BigTileAdapter(favList, !lite, false) { i -> openItem(favList, i) }
-        // lançamentos
-        val news = movies.drop(1).take(30)
-        findViewById<View>(R.id.newTitle).visibility = if (news.isEmpty()) View.GONE else View.VISIBLE
-        findViewById<HRow>(R.id.newRow).apply {
-            visibility = if (news.isEmpty()) View.GONE else View.VISIBLE
-            adapter = TileAdapter(HomeRow("Lançamentos", news, true), lite, {}) { i -> openItem(news, i) }
+        fun row(titleId: Int, rowId: Int, list: List<Item>) {
+            findViewById<View>(titleId).visibility = if (list.isEmpty()) View.GONE else View.VISIBLE
+            findViewById<HRow>(rowId).apply {
+                visibility = if (list.isEmpty()) View.GONE else View.VISIBLE
+                adapter = TileAdapter(HomeRow("", list, true), lite, {}) { i -> openItem(list, i) }
+            }
         }
+        row(R.id.newTitle, R.id.newRow, newMovies)
+        row(R.id.seriesTitle, R.id.seriesRow, newSeries)
+        row(R.id.kidsTitle, R.id.kidsRow, newKids)
+    }
     }
 
     // ================= TV ao vivo =================
@@ -852,6 +889,7 @@ class MainActivity : AppCompatActivity() {
         super.onStop()
         ui.removeCallbacks(clockTick)
         ui.removeCallbacks(scheduleCheck)
+        ui.removeCallbacks(heroTick)
     }
 
     private fun toast(s: String) = Toast.makeText(this, s, Toast.LENGTH_SHORT).show()
