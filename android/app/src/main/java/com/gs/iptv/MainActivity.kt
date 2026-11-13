@@ -126,7 +126,7 @@ class MainActivity : AppCompatActivity() {
             if (item.url.startsWith(Xtream.SERIES_PREFIX)) openSeries(item)
             else { if (item.kind == Kind.LIVE) current = item; openFullscreen(showcase.items, pos) }
         }
-        showcase.onUp = { tabViews[tab.ordinal].requestFocus() }
+        showcase.onUp = { (homeView as android.widget.ScrollView).smoothScrollTo(0, 0); tabViews[tab.ordinal].requestFocus() }
         showcase.onDown = { storiesRow.post { storiesRow.findViewHolderForAdapterPosition(0)?.itemView?.requestFocus() } }
         gamesList = findViewById(R.id.gamesList)
         gameAdapter = GameAdapter { g -> onGameClick(g) }
@@ -219,6 +219,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun focusFirstTile() {
+        (homeView as android.widget.ScrollView).scrollTo(0, 0)
         showcase.requestFocus()
     }
 

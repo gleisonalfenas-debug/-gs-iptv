@@ -196,59 +196,67 @@
             </LinearLayout>
         </LinearLayout>
 
-        <!-- Início: vitrine -->
-        <LinearLayout
+        <!-- Início: vitrine (rola sozinha conforme o foco desce) -->
+        <ScrollView
             android:id="@+id/homeView"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
-            android:orientation="vertical"
+            android:scrollbars="none"
             android:visibility="gone">
 
-            <com.gs.iptv.ShowcaseView
-                android:id="@+id/showcase"
-                android:layout_width="match_parent"
-                android:layout_height="250dp" />
-
-            <TextView
-                android:id="@+id/showcaseInfo"
+            <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="4dp"
-                android:gravity="center"
-                android:textColor="@color/pink_text"
-                android:textSize="15sp" />
+                android:orientation="vertical"
+                android:paddingBottom="16dp">
 
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="8dp"
-                android:text="Canais"
-                android:textSize="18sp"
-                android:textStyle="bold" />
+                <com.gs.iptv.ShowcaseView
+                    android:id="@+id/showcase"
+                    android:layout_width="match_parent"
+                    android:layout_height="240dp" />
 
-            <com.gs.iptv.HRow
-                android:id="@+id/storiesRow"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:clipToPadding="false"
-                android:paddingVertical="8dp" />
+                <TextView
+                    android:id="@+id/showcaseInfo"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:gravity="center"
+                    android:textColor="@color/pink_text"
+                    android:textSize="15sp" />
 
-            <TextView
-                android:id="@+id/bottomTitle"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="4dp"
-                android:textSize="18sp"
-                android:textStyle="bold" />
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="10dp"
+                    android:text="Canais"
+                    android:textSize="18sp"
+                    android:textStyle="bold" />
 
-            <com.gs.iptv.HRow
-                android:id="@+id/bottomRow"
-                android:layout_width="match_parent"
-                android:layout_height="0dp"
-                android:layout_weight="1"
-                android:clipToPadding="false"
-                android:paddingVertical="8dp" />
-        </LinearLayout>
+                <com.gs.iptv.HRow
+                    android:id="@+id/storiesRow"
+                    android:layout_width="match_parent"
+                    android:layout_height="132dp"
+                    android:clipToPadding="false"
+                    android:paddingHorizontal="6dp"
+                    android:paddingTop="10dp" />
+
+                <TextView
+                    android:id="@+id/bottomTitle"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:textSize="18sp"
+                    android:textStyle="bold" />
+
+                <com.gs.iptv.HRow
+                    android:id="@+id/bottomRow"
+                    android:layout_width="match_parent"
+                    android:layout_height="224dp"
+                    android:clipToPadding="false"
+                    android:paddingHorizontal="6dp"
+                    android:paddingVertical="12dp" />
+            </LinearLayout>
+        </ScrollView>
 
         <!-- Jogos do dia -->
         <LinearLayout

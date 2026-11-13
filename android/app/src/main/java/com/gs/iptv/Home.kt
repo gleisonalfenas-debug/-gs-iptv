@@ -162,6 +162,7 @@ class StoryAdapter(
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER_HORIZONTAL
             layoutParams = RecyclerView.LayoutParams((100 * d).toInt(), ViewGroup.LayoutParams.WRAP_CONTENT)
+            clipChildren = false
             isFocusable = true
         }
         val ring = FrameLayout(ctx).apply { setPadding((4 * d).toInt(), (4 * d).toInt(), (4 * d).toInt(), (4 * d).toInt()) }
@@ -177,13 +178,14 @@ class StoryAdapter(
         }
         inner.addView(initials, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
         inner.addView(logo, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
-        ring.addView(inner, FrameLayout.LayoutParams((68 * d).toInt(), (68 * d).toInt()))
+        ring.addView(inner, FrameLayout.LayoutParams((68 * d).toInt(), (68 * d).toInt(), Gravity.CENTER))
         val name = TextView(ctx).apply {
             setTextColor(Color.parseColor("#E6DCDE")); setTextSize(TypedValue.COMPLEX_UNIT_SP, 13f)
             maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END; gravity = Gravity.CENTER
             setPadding(0, (6 * d).toInt(), 0, 0)
         }
-        root.addView(ring)
+        // anel com tamanho fixo e quadrado: o círculo não deforma
+        root.addView(ring, LinearLayout.LayoutParams((76 * d).toInt(), (76 * d).toInt()))
         root.addView(name, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
         return VH(root, ring, logo, initials, name)
     }
