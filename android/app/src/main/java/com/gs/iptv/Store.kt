@@ -28,6 +28,17 @@ data class Item(
 /** Uma aba já organizada: todos os itens e as categorias. */
 class TabData(val items: List<Item>, val groups: List<Pair<String, List<Item>>>)
 
+/** Andamento de cada parte da lista (para mostrar a porcentagem na tela). */
+object LoadStatus {
+    enum class State { WAITING, LOADING, DONE, ERROR }
+    val pct = java.util.concurrent.ConcurrentHashMap<Kind, Int>()
+    val state = java.util.concurrent.ConcurrentHashMap<Kind, State>()
+    fun queue(kinds: List<Kind>) = kinds.forEach { state[it] = State.WAITING; pct[it] = 0 }
+    fun set(k: Kind, p: Int, st: State = State.LOADING) { pct[k] = p.coerceIn(0, 100); state[k] = st }
+    fun active() = state.values.any { it == State.WAITING || it == State.LOADING }
+    fun clear() { pct.clear(); state.clear() }
+}
+
 /** Guarda a lista configurada, baixa, lê (M3U / Xtream) e mantém favoritos. */
 object Store {
     private const val CACHE_HOURS = 12
@@ -251,12 +262,22 @@ object Store {
             val started = System.currentTimeMillis()
             val cache = cacheFile(ctx, kind)
             val useCache = hasFreshCache(ctx, kind) || (allowStale && hasCache(ctx, kind))
+            LoadStatus.set(kind, 0)
             if (force || !useCache) {
                 try {
                     if (isXtream(ctx)) {
-                        val list = Xtream.loadSection(ctx, kind, progress)
+                        val expected = prefs(ctx).getInt("count_${kind.name}", 0)
+                        val list = Xtream.loadSection(ctx, kind) { msg ->
+                            progress(msg)
+                            // porcentagem: itens recebidos x quantidade da última vez (até 85%)
+                            Regex("(\\d+)$").find(msg)?.groupValues?.get(1)?.toIntOrNull()?.let { n ->
+                                LoadStatus.set(kind, if (expected > 0) (n * 85 / expected).coerceAtMost(85) else minOf(80, 5 + n / 500))
+                            }
+                        }
+                        LoadStatus.set(kind, 88)
                         progress("Salvando ${list.size} itens…")
                         writeCache(cache, list)
+                        prefs(ctx).edit().putInt("count_${kind.name}", list.size).apply()
                     } else {
                         downloadM3uSplit(ctx, progress) // a M3U vem inteira: separa direto em arquivos
                     }
@@ -264,11 +285,13 @@ object Store {
                     if (!cache.exists()) throw e // sem internet e sem cópia salva
                 }
             }
+            LoadStatus.set(kind, 92)
             progress("Abrindo ${label(kind)}…")
             val list = if (cache.exists()) readCache(cache) else emptyList()
             synchronized(loaded) { loaded[kind] = list }
             progress("Organizando ${list.size} itens…")
             rebuild(kind)
+            LoadStatus.set(kind, 100, LoadStatus.State.DONE)
             Diag.listLoaded(label(kind) + if (force) " (atualizado)" else "", list.size, System.currentTimeMillis() - started)
             list
         }

@@ -34,7 +34,7 @@ object Xtream {
             val icon = (if (kind == Kind.SERIES) o["cover"] else o["stream_icon"]).orEmpty()
             val stars = o["rating_5based"]?.toFloatOrNull() ?: o["rating"]?.toFloatOrNull()?.div(2f) ?: 0f
             raw.add(arrayOf(o["name"].orEmpty(), id, icon, o["category_id"].orEmpty(), o["container_extension"].orEmpty(), stars.toString()))
-            if (raw.size % 1000 == 0) progress("Baixando ${Store.label(kind)}… ${raw.size}")
+            if (raw.size % 250 == 0) progress("Baixando ${Store.label(kind)}… ${raw.size}")
         }
         catThread.join(15_000)
         val out = ArrayList<Item>(raw.size)

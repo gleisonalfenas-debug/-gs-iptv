@@ -841,20 +841,22 @@ class MainActivity : AppCompatActivity() {
             sectionPanel.visibility = View.GONE
             if (!silent) loading.visibility = View.VISIBLE
             var failed = false
-            // as partes carregam ao mesmo tempo; cada uma aparece assim que fica pronta
-            val jobs = kinds.map { k ->
-                launch {
-                    try {
-                        Store.loadSection(this@MainActivity, k, force, { msg -> if (!silent) runOnUiThread { loadingText.text = msg } }, allowStale = silent)
-                        if (k in kindsFor(page) || page == Page.HOME) runOnUiThread { if (railItems.values.any { it.hasFocus() } || currentFocus == null) showPage(page) }
-                    } catch (e: OutOfMemoryError) {
-                        failed = true; toast("Os ${Store.label(k)} são muitos para a memória desta TV.")
-                    } catch (e: Exception) {
-                        failed = true; toast("Não foi possível baixar ${Store.label(k)}: ${e.message ?: "erro de conexão"}")
-                    }
+            // uma lista por vez (canais → filmes → séries); cada uma aparece assim que termina
+            val ordered = kinds.sortedBy { it.ordinal }
+            LoadStatus.queue(ordered)
+            startLoadBar()
+            for (k in ordered) {
+                try {
+                    Store.loadSection(this@MainActivity, k, force, { msg -> if (!silent) runOnUiThread { loadingText.text = msg } }, allowStale = silent)
+                    if (k in kindsFor(page) || page == Page.HOME) { if (railItems.values.any { it.hasFocus() } || currentFocus == null) showPage(page) }
+                } catch (e: OutOfMemoryError) {
+                    LoadStatus.set(k, 0, LoadStatus.State.ERROR)
+                    failed = true; toast("Os ${Store.label(k)} são muitos para a memória desta TV.")
+                } catch (e: Exception) {
+                    LoadStatus.set(k, 0, LoadStatus.State.ERROR)
+                    failed = true; toast("Não foi possível baixar ${Store.label(k)}: ${e.message ?: "erro de conexão"}")
                 }
             }
-            jobs.forEach { it.join() }
             loading.visibility = View.GONE
             loadingNow = false
             loaded = true
@@ -864,12 +866,48 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    /** Mostra embaixo: "Canais 100% ✓ · Filmes 42% · Séries na fila" + barra do total. */
+    private val loadBarTick = object : Runnable {
+        override fun run() {
+            val bar = findViewById<View>(R.id.loadBar)
+            val kinds = Kind.values().filter { LoadStatus.state.containsKey(it) }
+            if (kinds.isEmpty()) { bar.visibility = View.GONE; return }
+            val parts = kinds.map { k ->
+                val name = when (k) { Kind.LIVE -> "Canais"; Kind.MOVIE -> "Filmes"; Kind.SERIES -> "Séries" }
+                when (LoadStatus.state[k]) {
+                    LoadStatus.State.DONE -> "$name 100% ✓"
+                    LoadStatus.State.ERROR -> "$name erro"
+                    LoadStatus.State.WAITING -> "$name na fila"
+                    else -> "$name ${LoadStatus.pct[k] ?: 0}%"
+                }
+            }
+            val total = kinds.sumOf { LoadStatus.pct[it] ?: 0 } / kinds.size
+            bar.visibility = View.VISIBLE
+            findViewById<android.widget.ProgressBar>(R.id.loadBarProgress).progress = total
+            if (LoadStatus.active()) {
+                findViewById<TextView>(R.id.loadBarText).text = "Carregando listas ($total%):  ${parts.joinToString("  ·  ")}"
+                ui.postDelayed(this, 300)
+            } else {
+                findViewById<TextView>(R.id.loadBarText).text = "Listas prontas ✓   ${parts.joinToString("  ·  ")}"
+                ui.postDelayed({ bar.visibility = View.GONE; LoadStatus.clear() }, 4_000)
+            }
+        }
+    }
+
+    private fun startLoadBar() { ui.removeCallbacks(loadBarTick); ui.post(loadBarTick) }
+
     private fun refreshQuietly(kinds: List<Kind>) {
         if (kinds.isEmpty()) return
         lifecycleScope.launch {
             val t0 = System.currentTimeMillis()
             var changed = false
-            kinds.map { k -> launch { try { Store.loadSection(this@MainActivity, k, force = true); changed = true } catch (_: Throwable) { } } }.forEach { it.join() }
+            val ordered = kinds.sortedBy { it.ordinal }
+            LoadStatus.queue(ordered)
+            startLoadBar()
+            for (k in ordered) {
+                try { Store.loadSection(this@MainActivity, k, force = true); changed = true }
+                catch (_: Throwable) { LoadStatus.set(k, 0, LoadStatus.State.ERROR) }
+            }
             Diag.log("Atualização em segundo plano: ${kinds.joinToString { Store.label(it) }} em ${System.currentTimeMillis() - t0}ms")
             if (changed && railItems.values.any { it.hasFocus() }) showPage(page)
         }
