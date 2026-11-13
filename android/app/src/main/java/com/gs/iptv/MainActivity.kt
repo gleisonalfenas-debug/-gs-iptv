@@ -380,7 +380,7 @@ class MainActivity : AppCompatActivity() {
         // seta direita no canal: programação do dia
         tvList.onRight = {
             val pos = tvList.focusedChild?.let { tvList.getChildAdapterPosition(it) } ?: -1
-            liveAdapter.items.getOrNull(pos)?.let { ch -> Guide.show(this) { current = ch; openFullscreen(liveAdapter.items, pos) } }
+            liveAdapter.items.getOrNull(pos)?.let { ch -> Guide.show(this, ch) { current = ch; openFullscreen(liveAdapter.items, pos) } }
         }
     }
 
