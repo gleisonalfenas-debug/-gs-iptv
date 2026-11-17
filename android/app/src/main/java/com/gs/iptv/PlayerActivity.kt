@@ -233,7 +233,7 @@ class PlayerActivity : AppCompatActivity() {
     private fun play(i: Int) {
         if (queue.isEmpty()) return
         saveProgress()
-        index = (i + queue.size) % queue.size
+        index = i.coerceIn(0, queue.size - 1)
         val item = queue[index]
         view.useController = item.kind != Kind.LIVE
         bitrate = 0
