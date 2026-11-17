@@ -667,8 +667,7 @@ class MainActivity : AppCompatActivity() {
             rows.forEach { (k, v) -> infoRow(k, v) }
         }
 
-        // preferências (liga/desliga) e ações
-        prefs.addView(sectionLabel("PREFERÊNCIAS"))
+        // preferências (toggles)
         prefs.addView(toggleRow("Modo simples (mais rápido)", Store.liteOn(this)) { on -> Store.setLite(this, on); lite = on; recreate() })
         prefs.addView(toggleRow("Relógio fixo nos canais", Store.clockOn(this)) { on -> Store.setClock(this, on) })
         prefs.addView(toggleRow("Logo no canto dos canais", Store.cornerLogoOn(this)) { on -> Store.setCornerLogo(this, on) })
@@ -677,6 +676,8 @@ class MainActivity : AppCompatActivity() {
             if (on) createPin { pin -> Store.setKidsSafe(this, true, pin); unlocked = false; toast("Modo seguro ligado. O app abre no Kids."); showPage(Page.KIDS) }
             else { Store.setKidsSafe(this, false); toast("Modo seguro desligado") }
         })
+
+        // ajustes
         prefs.addView(sectionLabel("AJUSTES"))
         prefs.addView(actionRow("Buffer: ${Buffer.current(this).label}") { openBufferSettings() })
         prefs.addView(actionRow("DNS: ${DnsMode.current(this).label}") { openDnsSettings() })
