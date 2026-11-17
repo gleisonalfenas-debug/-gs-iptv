@@ -282,7 +282,29 @@ class MainActivity : AppCompatActivity() {
             page == Page.MOVIES || page == Page.SERIES || page == Page.SEARCH -> vodGrid.focusPosition(0)
             page == Page.GAMES -> gamesList.focusPosition(0)
             page == Page.KIDS -> kidsGrid.focusPosition(0)
-            page == Page.SETTINGS -> findViewById<LinearLayout>(R.id.accPrefs).getChildAt(0)?.requestFocus()
+            page == Page.SETTINGS -> {
+                val accContent = findViewById<LinearLayout>(R.id.accountContent)
+                val accPrefs = findViewById<LinearLayout>(R.id.accPrefs)
+                val accInfo = findViewById<LinearLayout>(R.id.accInfo)
+                // Primeira coluna = Preferências, segunda = Info
+                accContent.setOnKeyListener { _, code, ev ->
+                    if (ev.action != KeyEvent.ACTION_DOWN) return@setOnKeyListener false
+                    when (code) {
+                        KeyEvent.KEYCODE_DPAD_LEFT -> { accPrefs.requestFocus(); true }
+                        KeyEvent.KEYCODE_DPAD_RIGHT -> { accInfo.getChildAt(0)?.requestFocus(); true }
+                        else -> false
+                    }
+                }
+                accPrefs.setOnKeyListener { _, code, ev ->
+                    if (ev.action != KeyEvent.ACTION_DOWN) return@setOnKeyListener false
+                    if (code == KeyEvent.KEYCODE_DPAD_RIGHT) { accInfo.getChildAt(0)?.requestFocus(); true } else false
+                }
+                accInfo.setOnKeyListener { _, code, ev ->
+                    if (ev.action != KeyEvent.ACTION_DOWN) return@setOnKeyListener false
+                    if (code == KeyEvent.KEYCODE_DPAD_LEFT) { accPrefs.requestFocus(); true } else false
+                }
+                accPrefs.getChildAt(0)?.requestFocus()
+            }
         }
     }
 
