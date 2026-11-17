@@ -215,7 +215,7 @@ class MainActivity : AppCompatActivity() {
                         true
                     }
                     KeyEvent.KEYCODE_DPAD_LEFT -> true // trava na borda esquerda
-                    KeyEvent.KEYCODE_DPAD_RIGHT -> { focusContent(); true }
+                    KeyEvent.KEYCODE_DPAD_RIGHT -> { if (p != page) showPage(p); focusContent(); true }
                     else -> false
                 }
             }
