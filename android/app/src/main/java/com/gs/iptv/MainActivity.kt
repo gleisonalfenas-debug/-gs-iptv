@@ -286,7 +286,10 @@ class MainActivity : AppCompatActivity() {
                 val accContent = findViewById<LinearLayout>(R.id.accountContent)
                 val accPrefs = findViewById<LinearLayout>(R.id.accPrefs)
                 val accInfo = findViewById<LinearLayout>(R.id.accInfo)
-                // Primeira coluna = Preferências, segunda = Info
+                // Configura navegação na coluna 1 (Preferências) - já tratado no prefRowBase()
+                // Configura navegação na coluna 2 (Info)
+                setupInfoColumnNavigation(accInfo, accPrefs)
+                // Container para transição entre colunas
                 accContent.setOnKeyListener { _, code, ev ->
                     if (ev.action != KeyEvent.ACTION_DOWN) return@setOnKeyListener false
                     when (code) {
@@ -294,14 +297,6 @@ class MainActivity : AppCompatActivity() {
                         KeyEvent.KEYCODE_DPAD_RIGHT -> { accInfo.getChildAt(0)?.requestFocus(); true }
                         else -> false
                     }
-                }
-                accPrefs.setOnKeyListener { _, code, ev ->
-                    if (ev.action != KeyEvent.ACTION_DOWN) return@setOnKeyListener false
-                    if (code == KeyEvent.KEYCODE_DPAD_RIGHT) { accInfo.getChildAt(0)?.requestFocus(); true } else false
-                }
-                accInfo.setOnKeyListener { _, code, ev ->
-                    if (ev.action != KeyEvent.ACTION_DOWN) return@setOnKeyListener false
-                    if (code == KeyEvent.KEYCODE_DPAD_LEFT) { accPrefs.requestFocus(); true } else false
                 }
                 accPrefs.getChildAt(0)?.requestFocus()
             }
@@ -776,7 +771,28 @@ class MainActivity : AppCompatActivity() {
         setBackgroundResource(R.drawable.bg_item); isFocusable = true
         setPadding(dp(16), dp(14), dp(16), dp(14))
         layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply { bottomMargin = dp(8) }
-        setOnKeyListener { _, code, ev -> if (ev.action == KeyEvent.ACTION_DOWN && code == KeyEvent.KEYCODE_DPAD_LEFT) { focusRail(); true } else false }
+        setOnKeyListener { view, code, ev ->
+            if (ev.action != KeyEvent.ACTION_DOWN) return@setOnKeyListener false
+            val parent = view.parent as? LinearLayout ?: return@setOnKeyListener false
+            val index = parent.indexOfChild(view)
+            when (code) {
+                KeyEvent.KEYCODE_DPAD_UP -> {
+                    if (index > 0) parent.getChildAt(index - 1)?.requestFocus()
+                    true
+                }
+                KeyEvent.KEYCODE_DPAD_DOWN -> {
+                    if (index < parent.childCount - 1) parent.getChildAt(index + 1)?.requestFocus()
+                    true
+                }
+                KeyEvent.KEYCODE_DPAD_LEFT -> { focusRail(); true }
+                KeyEvent.KEYCODE_DPAD_RIGHT -> {
+                    // Vai para a coluna 2 (Info)
+                    findViewById<LinearLayout>(R.id.accInfo)?.getChildAt(0)?.requestFocus()
+                    true
+                }
+                else -> false
+            }
+        }
     }
 
     private fun toggleRow(label: String, initial: Boolean, onChange: (Boolean) -> Unit): View {
@@ -802,6 +818,30 @@ class MainActivity : AppCompatActivity() {
         row.addView(TextView(this).apply { text = "›"; setTextSize(TypedValue.COMPLEX_UNIT_SP, 22f); setTextColor(Color.parseColor("#8B8F9C")) })
         row.setOnClickListener { action() }
         return row
+    }
+
+    private fun setupInfoColumnNavigation(accInfo: LinearLayout, accPrefs: LinearLayout) {
+        // Torna filhos da coluna Info focáveis e navega UP/DOWN
+        for (i in 0 until accInfo.childCount) {
+            val child = accInfo.getChildAt(i)
+            child.isFocusable = true
+            child.setOnKeyListener { view, code, ev ->
+                if (ev.action != KeyEvent.ACTION_DOWN) return@setOnKeyListener false
+                when (code) {
+                    KeyEvent.KEYCODE_DPAD_UP -> {
+                        if (i > 0) accInfo.getChildAt(i - 1)?.requestFocus()
+                        true
+                    }
+                    KeyEvent.KEYCODE_DPAD_DOWN -> {
+                        if (i < accInfo.childCount - 1) accInfo.getChildAt(i + 1)?.requestFocus()
+                        true
+                    }
+                    KeyEvent.KEYCODE_DPAD_LEFT -> { accPrefs.requestFocus(); true }
+                    KeyEvent.KEYCODE_DPAD_RIGHT -> { accPrefs.requestFocus(); true } // volta pra prefs
+                    else -> false
+                }
+            }
+        }
     }
 
     private fun openDnsSettings() {
