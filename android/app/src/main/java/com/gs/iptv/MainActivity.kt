@@ -44,7 +44,7 @@ enum class Page(val label: String, val icon: Int) {
     SERIES("Séries", R.drawable.ic_tab_series),
     KIDS("Kids", R.drawable.ic_tab_kids),
     SEARCH("Buscar", R.drawable.ic_search),
-    ACCOUNT("Conta", R.drawable.ic_user),
+    SETTINGS("Preferências", R.drawable.ic_settings),
 }
 
 class MainActivity : AppCompatActivity() {
@@ -56,7 +56,7 @@ class MainActivity : AppCompatActivity() {
     private var loadingNow = false
     private var current: Item? = null
     private var unlocked = false
-    private fun locked() = Store.kidsSafeOn(this) && !unlocked
+    private fun locked() = Store.kidsSafeOn(this) && !unlocked && page != Page.SETTINGS
 
     private lateinit var title: TextView
     private lateinit var subtitle: TextView
@@ -121,7 +121,7 @@ class MainActivity : AppCompatActivity() {
             Page.HOME to findViewById(R.id.pageHome), Page.TV to findViewById(R.id.pageTv),
             Page.MOVIES to findViewById(R.id.pageVod), Page.SERIES to findViewById(R.id.pageVod),
             Page.SEARCH to findViewById(R.id.pageVod), Page.GAMES to findViewById(R.id.pageGames),
-            Page.KIDS to findViewById(R.id.pageKids), Page.ACCOUNT to findViewById(R.id.pageAccount),
+            Page.KIDS to findViewById(R.id.pageKids), Page.SETTINGS to findViewById(R.id.pageAccount),
         )
 
         buildRail()
@@ -134,7 +134,7 @@ class MainActivity : AppCompatActivity() {
 
         // Botão Conta no cabeçalho (topo direito)
         findViewById<LinearLayout>(R.id.accountBtn).apply {
-            setOnClickListener { showPage(Page.ACCOUNT); focusContent() }
+            setOnClickListener { showPage(Page.SETTINGS); focusContent() }
             setOnKeyListener { _, code, ev ->
                 if (ev.action == KeyEvent.ACTION_DOWN && code == KeyEvent.KEYCODE_DPAD_DOWN) { focusContent(); true } else false
             }
@@ -223,6 +223,7 @@ class MainActivity : AppCompatActivity() {
         Page.MOVIES -> listOf(Kind.MOVIE)
         Page.SERIES -> listOf(Kind.SERIES)
         Page.KIDS -> listOf(Kind.MOVIE, Kind.SERIES)
+        Page.SETTINGS -> emptyList()
         else -> emptyList()
     }
 
@@ -250,7 +251,7 @@ class MainActivity : AppCompatActivity() {
             Page.SERIES -> showVod(Tab.SERIES, "Séries")
             Page.GAMES -> showGames()
             Page.KIDS -> showKids()
-            Page.ACCOUNT -> showAccount()
+            Page.SETTINGS -> showAccount()
             Page.SEARCH -> {}
         }
     }
@@ -266,7 +267,7 @@ class MainActivity : AppCompatActivity() {
             page == Page.MOVIES || page == Page.SERIES || page == Page.SEARCH -> vodGrid.focusPosition(0)
             page == Page.GAMES -> gamesList.focusPosition(0)
             page == Page.KIDS -> kidsGrid.focusPosition(0)
-            page == Page.ACCOUNT -> findViewById<LinearLayout>(R.id.accPrefs).getChildAt(0)?.requestFocus()
+            page == Page.SETTINGS -> findViewById<LinearLayout>(R.id.accPrefs).getChildAt(0)?.requestFocus()
         }
     }
 
@@ -662,7 +663,7 @@ class MainActivity : AppCompatActivity() {
                 try { if (Store.isXtream(this@MainActivity)) Xtream.accountInfo(this@MainActivity) else listOf("Tipo de lista" to "Link M3U") }
                 catch (e: Exception) { listOf("Conta" to "Não consegui falar com o servidor") }
             }
-            if (page != Page.ACCOUNT) return@launch
+            if (page != Page.SETTINGS) return@launch
             rows.forEach { (k, v) -> infoRow(k, v) }
         }
 
