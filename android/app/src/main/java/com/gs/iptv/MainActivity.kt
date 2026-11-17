@@ -686,7 +686,7 @@ class MainActivity : AppCompatActivity() {
         prefs.addView(sectionLabel("PREFERÊNCIAS"))
         prefs.addView(toggleRow("Modo simples (mais rápido)", Store.liteOn(this)) { Store.setLite(this, it) })
         prefs.addView(toggleRow("Relógio fixo nos canais", Store.clockOn(this)) { Store.setClock(this, it) })
-        prefs.addView(toggleRow("Logo no canto dos canais", Store.logoOn(this)) { Store.setLogo(this, it) })
+        prefs.addView(toggleRow("Logo no canto dos canais", Store.cornerLogoOn(this)) { Store.setCornerLogo(this, it) })
         prefs.addView(toggleRow("Abrir no último canal", Store.autoLastOn(this)) { Store.setAutoLast(this, it) })
         prefs.addView(toggleRow("Modo seguro do Kids (pede senha)", Store.kidsSafeOn(this)) {
             if (it) createPin { Store.setKidsSafe(this, true, it); toast("Modo seguro ativado"); showAccount() }
