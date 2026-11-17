@@ -202,7 +202,22 @@ class MainActivity : AppCompatActivity() {
                 }
             }
             item.setOnKeyListener { _, code, ev ->
-                if (ev.action == KeyEvent.ACTION_DOWN && code == KeyEvent.KEYCODE_DPAD_RIGHT) { focusContent(); true } else false
+                if (ev.action != KeyEvent.ACTION_DOWN) return@setOnKeyListener false
+                when (code) {
+                    KeyEvent.KEYCODE_DPAD_UP -> {
+                        val idx = Page.values().indexOf(p)
+                        if (idx > 0) railItems[Page.values()[idx - 1]]?.requestFocus()
+                        true
+                    }
+                    KeyEvent.KEYCODE_DPAD_DOWN -> {
+                        val idx = Page.values().indexOf(p)
+                        if (idx < Page.values().size - 1) railItems[Page.values()[idx + 1]]?.requestFocus()
+                        true
+                    }
+                    KeyEvent.KEYCODE_DPAD_LEFT -> true // trava na borda esquerda
+                    KeyEvent.KEYCODE_DPAD_RIGHT -> { focusContent(); true }
+                    else -> false
+                }
             }
             rail.addView(item, LinearLayout.LayoutParams(dp(68), LinearLayout.LayoutParams.WRAP_CONTENT).apply { bottomMargin = dp(4) })
             railItems[p] = item
