@@ -667,6 +667,17 @@ class MainActivity : AppCompatActivity() {
             rows.forEach { (k, v) -> infoRow(k, v) }
         }
 
+        // preferências (5 toggles)
+        prefs.addView(sectionLabel("PREFERÊNCIAS"))
+        prefs.addView(toggleRow("Modo simples (mais rápido)", Store.liteOn(this)) { Store.setLite(this, it) })
+        prefs.addView(toggleRow("Relógio fixo nos canais", Store.clockOn(this)) { Store.setClock(this, it) })
+        prefs.addView(toggleRow("Logo no canto dos canais", Store.logoOn(this)) { Store.setLogo(this, it) })
+        prefs.addView(toggleRow("Abrir no último canal", Store.autoLastOn(this)) { Store.setAutoLast(this, it) })
+        prefs.addView(toggleRow("Modo seguro do Kids (pede senha)", Store.kidsSafeOn(this)) {
+            if (it) createPin { Store.setKidsSafe(this, true, it); toast("Modo seguro ativado"); showAccount() }
+            else { Store.setKidsSafe(this, false, ""); toast("Modo seguro desativado"); showAccount() }
+        })
+
         // ajustes
         prefs.addView(sectionLabel("AJUSTES"))
         prefs.addView(actionRow("Buffer: ${Buffer.current(this).label}") { openBufferSettings() })
