@@ -71,6 +71,7 @@ abstract class PosterStage(ctx: Context, attrs: AttributeSet?) : FrameLayout(ctx
     var onChange: ((Item?) -> Unit)? = null
     var onUp: (() -> Unit)? = null
     var onLeftEdge: (() -> Unit)? = null
+    var onRightEdge: (() -> Unit)? = null
     var onDown: (() -> Unit)? = null
 
     var items: List<Item> = emptyList()
@@ -103,7 +104,7 @@ abstract class PosterStage(ctx: Context, attrs: AttributeSet?) : FrameLayout(ctx
                 return true
             }
             KeyEvent.KEYCODE_DPAD_RIGHT -> {
-                if (index < items.size - 1) { val p = index; index++; layoutCards(p, 1); onChange?.invoke(current()) }
+                if (index < items.size - 1) { val p = index; index++; layoutCards(p, 1); onChange?.invoke(current()) } else onRightEdge?.invoke()
                 return true
             }
             KeyEvent.KEYCODE_DPAD_UP -> { onUp?.invoke(); return true }
