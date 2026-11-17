@@ -10,10 +10,12 @@ import androidx.recyclerview.widget.RecyclerView
 /**
  * Lista feita para o controle remoto:
  * - no fim da lista o foco PARA no último item (não pula para outro lugar)
- * - nas bordas o foco vai exatamente para onde definimos (onUp / onLeft / onRight)
+ * - nas bordas o foco vai exatamente para onde definimos (onLeft / onRight)
+ * - UP/DOWN nas extremidades travam o foco (não sai da lista)
  */
 class TvList @JvmOverloads constructor(ctx: Context, attrs: AttributeSet? = null) : RecyclerView(ctx, attrs) {
     var onUp: (() -> Unit)? = null
+    var onDown: (() -> Unit)? = null
     var onLeft: (() -> Unit)? = null
     var onRight: (() -> Unit)? = null
 
@@ -25,8 +27,8 @@ class TvList @JvmOverloads constructor(ctx: Context, attrs: AttributeSet? = null
         val span = (layoutManager as? GridLayoutManager)?.spanCount ?: 1
         val lastRow = (count - 1) / span
         when (direction) {
+            View.FOCUS_UP -> if (pos < span) return focused
             View.FOCUS_DOWN -> if (pos / span == lastRow) return focused
-            View.FOCUS_UP -> if (pos < span) { onUp?.let { it(); return focused } }
             View.FOCUS_LEFT -> if (pos % span == 0) { onLeft?.let { it() }; return focused }
             View.FOCUS_RIGHT -> if (span == 1 || pos % span == span - 1 || pos == count - 1) { onRight?.let { it() }; return focused }
         }
