@@ -188,16 +188,9 @@
                 <!-- CONTA -->
                 <ScrollView android:id="@+id/pageAccount" android:layout_width="match_parent" android:layout_height="match_parent"
                     android:paddingHorizontal="28dp" android:paddingBottom="20dp" android:visibility="gone"
-                    android:scrollbars="none">
-                    <LinearLayout android:id="@+id/accountContent" android:layout_width="match_parent" android:layout_height="wrap_content"
-                        android:orientation="horizontal" android:gravity="top|center_horizontal"
-                        android:focusable="true" android:focusableInTouchMode="true">
-                        <LinearLayout android:id="@+id/accPrefs" android:layout_width="0dp" android:layout_height="wrap_content"
-                            android:layout_weight="1" android:orientation="vertical" android:gravity="center_horizontal" android:maxWidth="500dp" android:paddingEnd="24dp" />
-                        <View android:layout_width="1dp" android:layout_height="match_parent" android:background="#262B36" android:layout_marginVertical="24dp" />
-                        <LinearLayout android:id="@+id/accInfo" android:layout_width="0dp" android:layout_height="wrap_content"
-                            android:layout_weight="1" android:orientation="vertical" android:gravity="center_horizontal" android:maxWidth="500dp" android:paddingStart="24dp" />
-                    </LinearLayout>
+                    android:scrollbars="none" android:gravity="center_horizontal">
+                    <LinearLayout android:id="@+id/accInfo" android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:orientation="vertical" android:gravity="center_horizontal" android:maxWidth="720dp" />
                 </ScrollView>
 
                 <!-- Painel para baixar cada parte (primeira vez) -->

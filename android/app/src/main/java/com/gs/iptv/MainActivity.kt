@@ -283,22 +283,29 @@ class MainActivity : AppCompatActivity() {
             page == Page.GAMES -> gamesList.focusPosition(0)
             page == Page.KIDS -> kidsGrid.focusPosition(0)
             page == Page.SETTINGS -> {
-                val accContent = findViewById<LinearLayout>(R.id.accountContent)
-                val accPrefs = findViewById<LinearLayout>(R.id.accPrefs)
                 val accInfo = findViewById<LinearLayout>(R.id.accInfo)
-                // Configura navegação na coluna 1 (Preferências) - já tratado no prefRowBase()
-                // Configura navegação na coluna 2 (Info)
-                setupInfoColumnNavigation(accInfo, accPrefs)
-                // Container para transição entre colunas
-                accContent.setOnKeyListener { _, code, ev ->
-                    if (ev.action != KeyEvent.ACTION_DOWN) return@setOnKeyListener false
-                    when (code) {
-                        KeyEvent.KEYCODE_DPAD_LEFT -> { accPrefs.requestFocus(); true }
-                        KeyEvent.KEYCODE_DPAD_RIGHT -> { accInfo.getChildAt(0)?.requestFocus(); true }
-                        else -> false
+                // Navegação simples: UP/DOWN entre itens, LEFT volta pro rail
+                for (i in 0 until accInfo.childCount) {
+                    val child = accInfo.getChildAt(i)
+                    child.isFocusable = true
+                    child.setOnKeyListener { _, code, ev ->
+                        if (ev.action != KeyEvent.ACTION_DOWN) return@setOnKeyListener false
+                        when (code) {
+                            KeyEvent.KEYCODE_DPAD_UP -> {
+                                if (i > 0) accInfo.getChildAt(i - 1)?.requestFocus()
+                                true
+                            }
+                            KeyEvent.KEYCODE_DPAD_DOWN -> {
+                                if (i < accInfo.childCount - 1) accInfo.getChildAt(i + 1)?.requestFocus()
+                                true
+                            }
+                            KeyEvent.KEYCODE_DPAD_LEFT -> { focusRail(); true }
+                            KeyEvent.KEYCODE_DPAD_RIGHT -> { focusRail(); true } // trava na borda
+                            else -> false
+                        }
                     }
                 }
-                accPrefs.getChildAt(0)?.requestFocus()
+                accInfo.getChildAt(0)?.requestFocus()
             }
         }
     }
@@ -667,8 +674,7 @@ class MainActivity : AppCompatActivity() {
     private fun showAccount() {
         setHeader("Minha conta", "")
         val info = findViewById<LinearLayout>(R.id.accInfo)
-        val prefs = findViewById<LinearLayout>(R.id.accPrefs)
-        info.removeAllViews(); prefs.removeAllViews()
+        info.removeAllViews()
 
         // dados da conta
         val header = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
@@ -700,31 +706,31 @@ class MainActivity : AppCompatActivity() {
         }
 
         // preferências (5 toggles)
-        prefs.addView(sectionLabel("PREFERÊNCIAS"))
-        prefs.addView(toggleRow("Modo simples (mais rápido)", Store.liteOn(this)) { Store.setLite(this, it) })
-        prefs.addView(toggleRow("Relógio fixo nos canais", Store.clockOn(this)) { Store.setClock(this, it) })
-        prefs.addView(toggleRow("Logo no canto dos canais", Store.cornerLogoOn(this)) { Store.setCornerLogo(this, it) })
-        prefs.addView(toggleRow("Abrir no último canal", Store.autoLastOn(this)) { Store.setAutoLast(this, it) })
-        prefs.addView(toggleRow("Modo seguro do Kids (pede senha)", Store.kidsSafeOn(this)) {
+        info.addView(sectionLabel("PREFERÊNCIAS"))
+        info.addView(toggleRow("Modo simples (mais rápido)", Store.liteOn(this)) { Store.setLite(this, it) })
+        info.addView(toggleRow("Relógio fixo nos canais", Store.clockOn(this)) { Store.setClock(this, it) })
+        info.addView(toggleRow("Logo no canto dos canais", Store.cornerLogoOn(this)) { Store.setCornerLogo(this, it) })
+        info.addView(toggleRow("Abrir no último canal", Store.autoLastOn(this)) { Store.setAutoLast(this, it) })
+        info.addView(toggleRow("Modo seguro do Kids (pede senha)", Store.kidsSafeOn(this)) {
             if (it) createPin { Store.setKidsSafe(this, true, it); toast("Modo seguro ativado"); showAccount() }
             else { Store.setKidsSafe(this, false, ""); toast("Modo seguro desativado"); showAccount() }
         })
 
         // ajustes
-        prefs.addView(sectionLabel("AJUSTES"))
-        prefs.addView(actionRow("Buffer: ${Buffer.current(this).label}") { openBufferSettings() })
-        prefs.addView(actionRow("DNS: ${DnsMode.current(this).label}") { openDnsSettings() })
-        prefs.addView(actionRow("Atualizar a lista agora") { refreshAll() })
-        prefs.addView(actionRow("Trocar login") { openSendList() })
-        prefs.addView(actionRow("Ver diagnóstico") {
+        info.addView(sectionLabel("AJUSTES"))
+        info.addView(actionRow("Buffer: ${Buffer.current(this).label}") { openBufferSettings() })
+        info.addView(actionRow("DNS: ${DnsMode.current(this).label}") { openDnsSettings() })
+        info.addView(actionRow("Atualizar a lista agora") { refreshAll() })
+        info.addView(actionRow("Trocar login") { openSendList() })
+        info.addView(actionRow("Ver diagnóstico") {
             AlertDialog.Builder(this).setTitle("Diagnóstico").setMessage(Diag.report(this)).setPositiveButton("Fechar", null).show()
         })
         val agenda = Scheduler.all(this)
         if (agenda.isNotEmpty()) {
-            prefs.addView(sectionLabel("AGENDAMENTOS"))
+            info.addView(sectionLabel("AGENDAMENTOS"))
             val fmt = SimpleDateFormat("dd/MM HH:mm", Locale.getDefault())
             agenda.forEach { a ->
-                prefs.addView(actionRow("${a.title} — ${a.channelName} (abre ${fmt.format(Date(a.openAt))})") {
+                info.addView(actionRow("${a.title} — ${a.channelName} (abre ${fmt.format(Date(a.openAt))})") {
                     AlertDialog.Builder(this).setTitle(a.title).setMessage("Cancelar este agendamento?")
                         .setPositiveButton("Cancelar agendamento") { _, _ -> Scheduler.remove(this, a.id); showAccount() }
                         .setNegativeButton("Manter", null).show()
@@ -818,30 +824,6 @@ class MainActivity : AppCompatActivity() {
         row.addView(TextView(this).apply { text = "›"; setTextSize(TypedValue.COMPLEX_UNIT_SP, 22f); setTextColor(Color.parseColor("#8B8F9C")) })
         row.setOnClickListener { action() }
         return row
-    }
-
-    private fun setupInfoColumnNavigation(accInfo: LinearLayout, accPrefs: LinearLayout) {
-        // Torna filhos da coluna Info focáveis e navega UP/DOWN
-        for (i in 0 until accInfo.childCount) {
-            val child = accInfo.getChildAt(i)
-            child.isFocusable = true
-            child.setOnKeyListener { view, code, ev ->
-                if (ev.action != KeyEvent.ACTION_DOWN) return@setOnKeyListener false
-                when (code) {
-                    KeyEvent.KEYCODE_DPAD_UP -> {
-                        if (i > 0) accInfo.getChildAt(i - 1)?.requestFocus()
-                        true
-                    }
-                    KeyEvent.KEYCODE_DPAD_DOWN -> {
-                        if (i < accInfo.childCount - 1) accInfo.getChildAt(i + 1)?.requestFocus()
-                        true
-                    }
-                    KeyEvent.KEYCODE_DPAD_LEFT -> { accPrefs.requestFocus(); true }
-                    KeyEvent.KEYCODE_DPAD_RIGHT -> { accPrefs.requestFocus(); true } // volta pra prefs
-                    else -> false
-                }
-            }
-        }
     }
 
     private fun openDnsSettings() {
