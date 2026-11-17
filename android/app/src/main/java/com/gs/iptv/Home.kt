@@ -31,8 +31,9 @@ class HRow @JvmOverloads constructor(ctx: Context, attrs: AttributeSet? = null) 
         val count = adapter?.itemCount ?: 0
         if (direction == View.FOCUS_RIGHT && pos == count - 1) return focused
         if (direction == View.FOCUS_LEFT && pos == 0) { onLeftEdge?.invoke(); return focused }
-        if (direction == View.FOCUS_UP) onUp?.let { it(); return focused }
-        if (direction == View.FOCUS_DOWN) onDown?.let { it(); return focused }
+        // UP/DOWN nas extremidades travam o foco (não sai da fileira)
+        if (direction == View.FOCUS_UP) return focused
+        if (direction == View.FOCUS_DOWN) return focused
         return super.focusSearch(focused, direction)
     }
 }
