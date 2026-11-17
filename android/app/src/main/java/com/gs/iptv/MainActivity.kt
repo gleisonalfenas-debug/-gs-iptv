@@ -132,6 +132,21 @@ class MainActivity : AppCompatActivity() {
         setupHome()
         setupPanel()
 
+        // Botão Conta no cabeçalho (topo direito)
+        findViewById<LinearLayout>(R.id.accountBtn).apply {
+            setOnClickListener { showPage(Page.ACCOUNT); focusContent() }
+            setOnKeyListener { _, code, ev ->
+                if (ev.action == KeyEvent.ACTION_DOWN && code == KeyEvent.KEYCODE_DPAD_DOWN) { focusContent(); true } else false
+            }
+            setOnFocusChangeListener { _, has ->
+                val icon = findViewById<ImageView>(R.id.accountIcon)
+                val label = findViewById<TextView>(R.id.accountLabel)
+                val c = if (has) Color.WHITE else Color.parseColor("#8B8F9C")
+                icon.setColorFilter(c)
+                label.setTextColor(c)
+            }
+        }
+
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
                 if (railItems.values.none { it.hasFocus() }) focusRail() else confirmExit()

@@ -47,6 +47,16 @@
                     android:layout_marginEnd="16dp" android:textColor="#5C6070" android:textSize="12sp" />
                 <TextView android:id="@+id/clock" android:layout_width="wrap_content" android:layout_height="wrap_content"
                     android:textSize="18sp" android:textStyle="bold" />
+                <!-- Conta no topo direito -->
+                <LinearLayout android:id="@+id/accountBtn" android:layout_width="wrap_content" android:layout_height="wrap_content"
+                    android:layout_marginStart="16dp" android:gravity="center_vertical" android:orientation="horizontal"
+                    android:background="@drawable/bg_rail_item" android:paddingHorizontal="16dp" android:paddingVertical="8dp"
+                    android:focusable="true" android:clickable="true">
+                    <ImageView android:id="@+id/accountIcon" android:layout_width="24dp" android:layout_height="24dp"
+                        android:layout_marginEnd="8dp" android:src="@drawable/ic_user" />
+                    <TextView android:id="@+id/accountLabel" android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:text="Conta" android:textSize="14sp" android:textStyle="bold" android:textColor="#FFFFFF" />
+                </LinearLayout>
             </LinearLayout>
 
             <FrameLayout
@@ -176,15 +186,18 @@
                 </LinearLayout>
 
                 <!-- CONTA -->
-                <LinearLayout android:id="@+id/pageAccount" android:layout_width="match_parent" android:layout_height="match_parent"
-                    android:orientation="horizontal" android:paddingHorizontal="28dp" android:paddingBottom="20dp" android:visibility="gone">
-                    <LinearLayout android:id="@+id/accInfo" android:layout_width="420dp" android:layout_height="match_parent" android:orientation="vertical" />
-                    <ScrollView android:layout_width="0dp" android:layout_height="match_parent" android:layout_marginStart="30dp"
-                        android:layout_weight="1" android:scrollbars="none">
-                        <LinearLayout android:id="@+id/accPrefs" android:layout_width="match_parent" android:layout_height="wrap_content"
-                            android:orientation="vertical" />
-                    </ScrollView>
-                </LinearLayout>
+                <ScrollView android:id="@+id/pageAccount" android:layout_width="match_parent" android:layout_height="match_parent"
+                    android:paddingHorizontal="28dp" android:paddingBottom="20dp" android:visibility="gone"
+                    android:scrollbars="none" android:gravity="center_horizontal">
+                    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                        android:orientation="vertical" android:gravity="center_horizontal">
+                        <LinearLayout android:id="@+id/accInfo" android:layout_width="wrap_content" android:layout_height="wrap_content"
+                            android:orientation="vertical" android:gravity="center_horizontal" android:maxWidth="720dp" />
+                        <View android:layout_width="match_parent" android:layout_height="24dp" />
+                        <LinearLayout android:id="@+id/accPrefs" android:layout_width="wrap_content" android:layout_height="wrap_content"
+                            android:orientation="vertical" android:gravity="center_horizontal" android:maxWidth="720dp" />
+                    </LinearLayout>
+                </ScrollView>
 
                 <!-- Painel para baixar cada parte (primeira vez) -->
                 <LinearLayout android:id="@+id/sectionPanel" android:layout_width="640dp" android:layout_height="wrap_content"
