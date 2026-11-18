@@ -162,7 +162,7 @@ class MainActivity : AppCompatActivity() {
         Store.justUpdated(this) // só registra a versão; sem janela depois de atualizar
         Http.warm(Store.playlistUrl(this))
         if (Store.kidsSafeOn(this)) page = Page.KIDS
-        if (!Store.hasList(this)) openSendList() else startup()
+        if (!Store.hasList(this)) loadDemoAndStart() else startup()
     }
 
     // ================= Barra lateral =================
@@ -914,13 +914,40 @@ class MainActivity : AppCompatActivity() {
         if (railItems.values.none { it.hasFocus() }) sectionPanel.post { findViewById<View>(id).requestFocus() }
     }
 
-    /** Ao abrir: mostra na hora o que já está salvo e atualiza os canais por trás. */
+    /** Ao abrir: carrega TODAS as listas (canais, filmes, séries, kids) e mostra o que já tem. */
+    private fun loadDemoAndStart() {
+        lifecycleScope.launch {
+            loading.visibility = View.VISIBLE
+            loadingText.text = "Carregando demonstração…"
+            try {
+                Store.loadDemo(this@MainActivity) { msg -> runOnUiThread { loadingText.text = msg } }
+                toast("Demo carregada - configure sua lista nas Preferências")
+            } catch (e: Exception) {
+                toast("Erro ao carregar demo: ${e.message}")
+            }
+            loading.visibility = View.GONE
+            loaded = true
+            showPage(page)
+            focusRail()
+        }
+    }
+
     private fun startup() {
-        val cached = Kind.values().filter { Store.hasCache(this, it) && !Store.isLoaded(it) }
-        if (cached.isEmpty()) { showPage(page); focusRail(); return }
-        loadKinds(cached, force = false, silent = true) {
+        // Carrega as 3 seções principais; kids vem junto com filmes/séries (section == 1)
+        val allKinds = listOf(Kind.LIVE, Kind.MOVIE, Kind.SERIES)
+        val cached = allKinds.filter { Store.hasCache(this, it) && !Store.isLoaded(it) }
+        val missing = allKinds.filter { !Store.isLoaded(it) && !cached.contains(it) }
+
+        // Se tem cache, abre direto com o que tem; se não, baixa tudo
+        val toLoad = if (cached.isNotEmpty()) cached else missing
+
+        if (toLoad.isEmpty()) { showPage(page); focusRail(); return }
+
+        loadKinds(toLoad, force = false, silent = true) {
             if (Store.autoLastOn(this)) openLastChannel()
-            refreshQuietly(cached.filter { it == Kind.LIVE || Store.cacheAgeMin(this, it) > 12 * 60 })
+            // Atualiza em segundo plano o que está velho (>12h) ou canais ao vivo
+            val toRefresh = allKinds.filter { it == Kind.LIVE || Store.cacheAgeMin(this@MainActivity, it) > 12 * 60 }
+            refreshQuietly(toRefresh)
         }
     }
 

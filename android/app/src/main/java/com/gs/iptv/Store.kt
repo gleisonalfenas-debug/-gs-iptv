@@ -43,6 +43,41 @@ object LoadStatus {
 object Store {
     private const val CACHE_HOURS = 12
 
+    /** Demo M3U with 4 categories: Canais, Filmes, Séries, Kids. Loaded when no playlist is configured. */
+    private const val DEMO_M3U = """#EXTM3U
+#EXTINF:-1 tvg-id="br.globo" tvg-name="TV Globo" tvg-logo="https://raw.githubusercontent.com/tv-logo/tv-logos/main/countries/brazil/globo.png" group-title="Canais",TV Globo
+https://globoplay-a.akamaihd.net/globo1/hls/live/2031472/globo1/master.m3u8
+#EXTINF:-1 tvg-id="br.record" tvg-name="Record TV" tvg-logo="https://raw.githubusercontent.com/tv-logo/tv-logos/main/countries/brazil/record.png" group-title="Canais",Record TV
+https://recordtv-a.akamaihd.net/recordtv/hls/live/2031473/recordtv/master.m3u8
+#EXTINF:-1 tvg-id="br.sbt" tvg-name="SBT" tvg-logo="https://raw.githubusercontent.com/tv-logo/tv-logos/main/countries/brazil/sbt.png" group-title="Canais",SBT
+https://sbt-a.akamaihd.net/sbt/hls/live/2031474/sbt/master.m3u8
+#EXTINF:-1 tvg-id="br.band" tvg-name="Band" tvg-logo="https://raw.githubusercontent.com/tv-logo/tv-logos/main/countries/brazil/band.png" group-title="Canais",Band
+https://band-a.akamaihd.net/band/hls/live/2031475/band/master.m3u8
+#EXTINF:-1 tvg-id="br.cultura" tvg-name="TV Cultura" tvg-logo="https://raw.githubusercontent.com/tv-logo/tv-logos/main/countries/brazil/tv-cultura.png" group-title="Canais",TV Cultura
+https://cultura-a.akamaihd.net/cultura/hls/live/2031476/cultura/master.m3u8
+#EXTINF:-1 tvg-id="br.redetv" tvg-name="RedeTV!" tvg-logo="https://raw.githubusercontent.com/tv-logo/tv-logos/main/countries/brazil/rede-tv.png" group-title="Canais",RedeTV!
+https://redetv-a.akamaihd.net/redetv/hls/live/2031477/redetv/master.m3u8
+#EXTINF:-1 tvg-id="br.cnn" tvg-name="CNN Brasil" tvg-logo="https://raw.githubusercontent.com/tv-logo/tv-logos/main/countries/brazil/cnn-brasil.png" group-title="Canais",CNN Brasil
+https://cnnbrasil-a.akamaihd.net/cnnbrasil/hls/live/2031478/cnnbrasil/master.m3u8
+#EXTINF:-1 tvg-id="br.bandnews" tvg-name="BandNews" tvg-logo="https://raw.githubusercontent.com/tv-logo/tv-logos/main/countries/brazil/bandnews.png" group-title="Canais",BandNews
+https://bandnews-a.akamaihd.net/bandnews/hls/live/2031479/bandnews/master.m3u8
+#EXTINF:-1 tvg-id="br.sportv" tvg-name="SporTV" tvg-logo="https://raw.githubusercontent.com/tv-logo/tv-logos/main/countries/brazil/sportv.png" group-title="Canais",SporTV
+https://sportv-a.akamaihd.net/sportv/hls/live/2031480/sportv/master.m3u8
+#EXTINF:-1 tvg-id="br.espn" tvg-name="ESPN Brasil" tvg-logo="https://raw.githubusercontent.com/tv-logo/tv-logos/main/countries/brazil/espn-brasil.png" group-title="Canais",ESPN Brasil
+https://espn-a.akamaihd.net/espn/hls/live/2031481/espn/master.m3u8
+#EXTINF:-1 tvg-id="br.hbo" tvg-name="HBO" tvg-logo="https://raw.githubusercontent.com/tv-logo/tv-logos/main/countries/brazil/hbo.png" group-title="Filmes",HBO
+https://hbo-a.akamaihd.net/hbo/hls/live/2031484/hbo/master.m3u8
+#EXTINF:-1 tvg-id="br.telecine" tvg-name="Telecine Premium" tvg-logo="https://raw.githubusercontent.com/tv-logo/tv-logos/main/countries/brazil/telecine-premium.png" group-title="Filmes",Telecine Premium
+https://telecine-a.akamaihd.net/telecine/hls/live/2031485/telecine/master.m3u8
+#EXTINF:-1 tvg-id="br.disney" tvg-name="Disney Channel" tvg-logo="https://raw.githubusercontent.com/tv-logo/tv-logos/main/countries/brazil/disney-channel.png" group-title="Kids",Disney Channel
+https://disney-a.akamaihd.net/disney/hls/live/2031482/disney/master.m3u8
+#EXTINF:-1 tvg-id="br.cartoon" tvg-name="Cartoon Network" tvg-logo="https://raw.githubusercontent.com/tv-logo/tv-logos/main/countries/brazil/cartoon-network.png" group-title="Kids",Cartoon Network
+https://cartoon-a.akamaihd.net/cartoon/hls/live/2031483/cartoon/master.m3u8
+#EXTINF:-1 tvg-id="br.globoplay" tvg-name="Globoplay" tvg-logo="https://raw.githubusercontent.com/tv-logo/tv-logos/main/countries/brazil/globoplay.png" group-title="Séries",Globoplay
+https://globoplay-a.akamaihd.net/globoplay/hls/live/2031486/globoplay/master.m3u8
+#EXTINF:-1 tvg-id="br.paramount" tvg-name="Paramount+" tvg-logo="https://raw.githubusercontent.com/tv-logo/tv-logos/main/countries/brazil/paramount-plus.png" group-title="Séries",Paramount+
+https://paramount-a.akamaihd.net/paramount/hls/live/2031487/paramount/master.m3u8""".trimIndent()
+
     @Volatile var items: List<Item> = emptyList()
         private set
 
@@ -422,6 +457,58 @@ object Store {
             f.delete()
             tmps[k]!!.renameTo(f)
         }
+    }
+
+    /** Carrega o demo M3U embutido (Canais, Filmes, Séries, Kids). */
+    suspend fun loadDemo(ctx: Context, progress: (String) -> Unit = {}): List<Item> =
+        withContext(Dispatchers.IO) {
+            LoadStatus.queue(Kind.values())
+            val tmps = Kind.values().associateWith { File(ctx.filesDir, "split_${it.name}.tmp") }
+            val writers = tmps.mapValues { it.value.bufferedWriter() }
+            try {
+                DEMO_M3U.trim().lineSequence().forEach { line ->
+                    val item = parseM3uLine(line) ?: return@forEach
+                    writers[item.kind]!!.write(line(item))
+                }
+            } finally {
+                writers.values.forEach { it.close() }
+            }
+            for (k in Kind.values()) {
+                val f = cacheFile(ctx, k)
+                f.delete()
+                tmps[k]!!.renameTo(f)
+            }
+            // recarrega tudo
+            Kind.values().forEach { k ->
+                val list = if (cacheFile(ctx, k).exists()) readCache(cacheFile(ctx, k)) else emptyList()
+                synchronized(loaded) { loaded[k] = list }
+                rebuild(k)
+            }
+            items = synchronized(loaded) { loaded.values.flatten().toList() }
+            Diag.log("Demo carregado: ${items.size} itens")
+            items
+        }
+
+    private fun parseM3uLine(line: String): Item? {
+        var name = ""; var logo = ""; var group = ""; var pending = false
+        var liveNumber = 0
+        when {
+            line.startsWith("#EXTINF") -> {
+                pending = true
+                logo = reLogo.find(line)?.groupValues?.get(1).orEmpty()
+                group = reGroup.find(line)?.groupValues?.get(1).orEmpty()
+                val comma = line.indexOf(',', maxOf(line.lastIndexOf('"'), 0))
+                name = if (comma >= 0) line.substring(comma + 1).trim() else ""
+                if (name.isEmpty()) name = reName.find(line)?.groupValues?.get(1).orEmpty()
+            }
+            line.startsWith("#EXTGRP:") -> group = line.substring(8).trim()
+            line.isNotEmpty() && !line.startsWith("#") && pending -> {
+                val kind = kindOf(line, group)
+                val n = if (kind == Kind.LIVE) ++liveNumber else 0
+                return make(name.ifEmpty { "Sem nome" }, line, logo, group.ifEmpty { "Outros" }, kind, n)
+            }
+        }
+        return null
     }
 
     private fun line(i: Item) =
