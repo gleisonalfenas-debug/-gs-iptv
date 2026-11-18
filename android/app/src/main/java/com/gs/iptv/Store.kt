@@ -44,7 +44,7 @@ object Store {
     private const val CACHE_HOURS = 12
 
     /** Demo M3U with 4 categories: Canais, Filmes, Séries, Kids. Loaded when no playlist is configured. */
-    private const val DEMO_M3U = """#EXTM3U
+    private val DEMO_M3U = """#EXTM3U
 #EXTINF:-1 tvg-id="br.globo" tvg-name="TV Globo" tvg-logo="https://raw.githubusercontent.com/tv-logo/tv-logos/main/countries/brazil/globo.png" group-title="Canais",TV Globo
 https://globoplay-a.akamaihd.net/globo1/hls/live/2031472/globo1/master.m3u8
 #EXTINF:-1 tvg-id="br.record" tvg-name="Record TV" tvg-logo="https://raw.githubusercontent.com/tv-logo/tv-logos/main/countries/brazil/record.png" group-title="Canais",Record TV
@@ -462,8 +462,9 @@ https://paramount-a.akamaihd.net/paramount/hls/live/2031487/paramount/master.m3u
     /** Carrega o demo M3U embutido (Canais, Filmes, Séries, Kids). */
     suspend fun loadDemo(ctx: Context, progress: (String) -> Unit = {}): List<Item> =
         withContext(Dispatchers.IO) {
-            LoadStatus.queue(Kind.values())
-            val tmps = Kind.values().associateWith { File(ctx.filesDir, "split_${it.name}.tmp") }
+            val kinds = Kind.values().toList()
+            LoadStatus.queue(kinds)
+            val tmps = kinds.associateWith { File(ctx.filesDir, "split_${it.name}.tmp") }
             val writers = tmps.mapValues { it.value.bufferedWriter() }
             try {
                 DEMO_M3U.trim().lineSequence().forEach { line ->
@@ -473,13 +474,13 @@ https://paramount-a.akamaihd.net/paramount/hls/live/2031487/paramount/master.m3u
             } finally {
                 writers.values.forEach { it.close() }
             }
-            for (k in Kind.values()) {
+            for (k in kinds) {
                 val f = cacheFile(ctx, k)
                 f.delete()
                 tmps[k]!!.renameTo(f)
             }
             // recarrega tudo
-            Kind.values().forEach { k ->
+            kinds.forEach { k ->
                 val list = if (cacheFile(ctx, k).exists()) readCache(cacheFile(ctx, k)) else emptyList()
                 synchronized(loaded) { loaded[k] = list }
                 rebuild(k)
