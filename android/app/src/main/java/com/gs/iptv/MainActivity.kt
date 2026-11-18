@@ -934,20 +934,10 @@ class MainActivity : AppCompatActivity() {
 
     private fun startup() {
         // Carrega as 3 seções principais; kids vem junto com filmes/séries (section == 1)
+        // Sempre força atualização completa ao abrir o app
         val allKinds = listOf(Kind.LIVE, Kind.MOVIE, Kind.SERIES)
-        val cached = allKinds.filter { Store.hasCache(this, it) && !Store.isLoaded(it) }
-        val missing = allKinds.filter { !Store.isLoaded(it) && !cached.contains(it) }
-
-        // Se tem cache, abre direto com o que tem; se não, baixa tudo
-        val toLoad = if (cached.isNotEmpty()) cached else missing
-
-        if (toLoad.isEmpty()) { showPage(page); focusRail(); return }
-
-        loadKinds(toLoad, force = false, silent = true) {
+        loadKinds(allKinds, force = true, silent = true) {
             if (Store.autoLastOn(this)) openLastChannel()
-            // Atualiza em segundo plano o que está velho (>12h) ou canais ao vivo
-            val toRefresh = allKinds.filter { it == Kind.LIVE || Store.cacheAgeMin(this@MainActivity, it) > 12 * 60 }
-            refreshQuietly(toRefresh)
         }
     }
 
